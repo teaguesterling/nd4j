@@ -12,6 +12,9 @@
 
     <name>nd4j-parameter-server</name>
 
+    <modules>
+        <module>Pistachio</module>
+    </modules>
 
 
 </project>
