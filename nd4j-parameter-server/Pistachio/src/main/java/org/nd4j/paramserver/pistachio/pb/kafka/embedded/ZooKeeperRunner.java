@@ -16,7 +16,7 @@
  *
  */
 
-package org.nd4j.paramserver.pistachio.pb.mttf;
+package org.nd4j.paramserver.pistachio.pb.kafka.embedded;
 
 import java.io.File;
 import java.net.InetSocketAddress;
