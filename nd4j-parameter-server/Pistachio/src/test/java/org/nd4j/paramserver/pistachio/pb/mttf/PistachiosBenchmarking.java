@@ -14,9 +14,15 @@
 //import shared.*;
 
 package org.nd4j.paramserver.pistachio.pb.mttf;
+import kyotocabinet.DB;
 import org.nd4j.paramserver.pistachio.pb.PistachiosClient;
+import org.nd4j.paramserver.pistachio.pb.PistachiosFormatter;
+import org.nd4j.paramserver.pistachio.pb.PistachiosServer;
+import org.nd4j.paramserver.pistachio.pb.kafka.embedded.EmbeddedKafkaCluster;
+import org.nd4j.paramserver.pistachio.pb.kafka.embedded.ZooKeeperRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.ClassPathResource;
 
 import java.util.Random;
 
@@ -55,30 +61,53 @@ public class PistachiosBenchmarking implements Runnable {
     }
 
 
-    public static void main(String [] args) {
-        int threadCount = 50;
-        logger.info("parsing error {}", args.length);
-        if (args.length >=1) {
-            try {
-                threadCount = Integer.parseInt(args[0]);
-                logger.info("parsd {} {}", args[0], threadCount);
-            } catch(Exception e) {
-                logger.info("parsing error", e);
-            }
-        }
-        if (args.length >=2) {
-            try {
-                recordAverageSize = Integer.parseInt(args[1]);
-                logger.info("parsd {} {}", args[1], recordAverageSize);
-            } catch(Exception e) {
-                logger.info("parsing error", e);
-            }
-        }
+    public static void main(String [] args) throws Exception {
 
-        for (int i = 0; i< threadCount; i++) {
-            Thread thread = new Thread(new PistachiosBenchmarking(), "benchmarking"+i);
-            thread.start();
-        }
+        final ZooKeeperRunner zk = new ZooKeeperRunner();
+        final EmbeddedKafkaCluster cluster = new EmbeddedKafkaCluster(zk.toString());
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    zk.run();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+        t.start();
+
+        Thread t2 = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                cluster.startup();
+
+            }
+        });
+
+        t2.start();
+
+
+        Thread.sleep(10000);
+        ClassPathResource resource = new ClassPathResource("config");
+        System.setProperty("configPath", resource.getFile().getAbsolutePath());
+
+        System.setProperty("Pistachio.ZooKeeper.Server", zk.toString());
+
+
+        PistachiosFormatter.main(new String[]{"format", "-h", "127.0.0.1", "-k", "1", "-p", "1", "-r", "1"});
+
+        PistachiosServer.main(new String[]{});
+
+        int threadCount = 50;
+
+        PistachiosClient client = new PistachiosClient();
+        String hi = "hi";
+        client.store(hi.getBytes(),hi.getBytes());
+        byte[] b = client.lookup(hi.getBytes());
+        System.out.println(new String(b));
+        Thread.sleep(10000);
+
 
     }
 

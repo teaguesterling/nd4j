@@ -14,5 +14,5 @@ package org.nd4j.paramserver.pistachio.pb;
 import java.util.List;
 
 public interface EventProcessor {
-    public void processBatch(byte[] id, long partitionId, List<byte[]> events);
+    void processBatch(byte[] id, long partitionId, List<byte[]> events);
 }

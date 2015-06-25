@@ -30,7 +30,7 @@ import org.nd4j.paramserver.pistachio.pb.kafka.KeyValue;
 import com.ibm.icu.util.ByteArrayWrapper;
 
 
-public class StorePartition implements BootstrapPartitionHandler, StoreChangable, StorePartitionMBean{
+public class StorePartition implements BootstrapPartitionHandler, StoreChangable, StorePartitionMBean {
     volatile boolean isRunning = false;
     private final int partitionId;
     private Thread t;
@@ -55,7 +55,7 @@ public class StorePartition implements BootstrapPartitionHandler, StoreChangable
 
     private AtomicLong seqId = new AtomicLong(0);
     private AtomicLong nextSeqId = new AtomicLong(-1);
-    ConcurrentHashMap<ByteArrayWrapper, KeyValue> writeCache = new ConcurrentHashMap<ByteArrayWrapper, KeyValue>();
+    ConcurrentHashMap<ByteArrayWrapper, KeyValue> writeCache = new ConcurrentHashMap<>();
 
     public static Integer[] keyLocks = new Integer[1024];
 
@@ -74,13 +74,13 @@ public class StorePartition implements BootstrapPartitionHandler, StoreChangable
 
     public ConcurrentHashMap<ByteArrayWrapper, KeyValue> getWriteCache() { return writeCache; }
     public KeyValue getFromWriteCache(byte[] key) {
-            return writeCache.get(new ByteArrayWrapper(key, key.length));
+        return writeCache.get(new ByteArrayWrapper(key, key.length));
     }
     public void removeIteamFromCacheAccordingToSeqId(byte[] key, long seqId) {
         ByteArrayWrapper byteArrayWrapper = new ByteArrayWrapper(key, key.length);
         KeyValue keyValueInCache;
         if (writeCache.containsKey(byteArrayWrapper) &&
-            (keyValueInCache = writeCache.get(byteArrayWrapper)).seqId == seqId) {
+                (keyValueInCache = writeCache.get(byteArrayWrapper)).seqId == seqId) {
             writeCache.remove(byteArrayWrapper, keyValueInCache);
         }
     }
@@ -131,7 +131,7 @@ public class StorePartition implements BootstrapPartitionHandler, StoreChangable
 
     @Override
     public void startServing() {
-            logger.info("startServing()");
+        logger.info("startServing()");
         s = storeFactory.getInstance();
         s.open(partitionId);
         if (t == null) {
@@ -140,16 +140,16 @@ public class StorePartition implements BootstrapPartitionHandler, StoreChangable
             }
             isRunning = true;
             logger.info("startServing Partition {}", partitionId);
-            
+
             t = new Thread() {
                 @Override
                 public void run() {
-        String partitionTopic = ConfigurationManager.getConfiguration().getString("Profile.Kafka.TopicPrefix") + partitionId;
-        logger.info("run Partition Serving {}", partitionTopic);
+                    String partitionTopic = ConfigurationManager.getConfiguration().getString("Profile.Kafka.TopicPrefix") + partitionId;
+                    logger.info("run Partition Serving {}", partitionTopic);
 
-        consumer = new KafkaSimpleConsumer(partitionTopic,
-                0, ConfigurationManager.getConfiguration().getString(
-                        "Profile.Helix.InstanceId"), false);
+                    consumer = new KafkaSimpleConsumer(partitionTopic,
+                            0, ConfigurationManager.getConfiguration().getString(
+                            "Profile.Helix.InstanceId"), false);
                     //KafkaSimpleConsumer previousConsumer = consumer;
                     //consumer = new KafkaSimpleConsumer(previousConsumer); // create a new KafkaSimpleConsumer as it will be used in another thread
                     //previousConsumer.stop();
@@ -164,24 +164,24 @@ public class StorePartition implements BootstrapPartitionHandler, StoreChangable
     }
 
     public void serving(Store store, boolean offsetChecking) {
-        
+
         String partitionTopic;
         long readOffset;
         long startTime = System.currentTimeMillis();
         long recMsgTmpCount = 0;
-        
-        try  {
-        partitionTopic = ConfigurationManager.getConfiguration().getString("Profile.Kafka.TopicPrefix") + partitionId;
-        logger.info("run Partition Serving {} need to check offset {}", partitionTopic,offsetChecking);
 
-        readOffset = store.getCurrentOffset();
-        logger.info("partiton {} readoffset {}", partitionId, readOffset);
-        partitionQueueStatus.put(partitionTopic, 0L);
+        try  {
+            partitionTopic = ConfigurationManager.getConfiguration().getString("Profile.Kafka.TopicPrefix") + partitionId;
+            logger.info("run Partition Serving {} need to check offset {}", partitionTopic,offsetChecking);
+
+            readOffset = store.getCurrentOffset();
+            logger.info("partiton {} readoffset {}", partitionId, readOffset);
+            partitionQueueStatus.put(partitionTopic, 0L);
         } catch (Exception e) {
             logger.info("error ", e);
             return;
         }
-        
+
         Kryo kryo = new Kryo();
         while (isRunning) {
             try {
@@ -289,7 +289,7 @@ public class StorePartition implements BootstrapPartitionHandler, StoreChangable
         // TODO Auto-generated method stub
         this.storeFactory = sf;
     }
-    
+
     @Override
     public void selfBootstraping(){
         //s = storeFactory.getInstance();
@@ -299,14 +299,14 @@ public class StorePartition implements BootstrapPartitionHandler, StoreChangable
 
         KafkaSimpleConsumer consumer1 = new KafkaSimpleConsumer(partitionTopic,
                 0, ConfigurationManager.getConfiguration().getString(
-                        "Profile.Helix.InstanceId"), false);
+                "Profile.Helix.InstanceId"), false);
         long currentOffset = s.getCurrentOffset();
         long kafkaOffset = -1;
-            try{
-                kafkaOffset = consumer1.getLastOffset();
-            }catch(InterruptedException e){
-                logger.error("interrupted when getting last offset");
-            }
+        try{
+            kafkaOffset = consumer1.getLastOffset();
+        }catch(InterruptedException e){
+            logger.error("interrupted when getting last offset");
+        }
 
         if (currentOffset > kafkaOffset) {
             currentOffset = kafkaOffset;
@@ -319,7 +319,7 @@ public class StorePartition implements BootstrapPartitionHandler, StoreChangable
         }
 
         while (kafkaOffset >  currentOffset) {
-        currentOffset = s.getCurrentOffset();
+            currentOffset = s.getCurrentOffset();
             logger.info("partition catching up:"+partitionId+"  kafkaoffset:"+kafkaOffset+" currentoffset:"+currentOffset);
             try {
                 Thread.sleep(1000);

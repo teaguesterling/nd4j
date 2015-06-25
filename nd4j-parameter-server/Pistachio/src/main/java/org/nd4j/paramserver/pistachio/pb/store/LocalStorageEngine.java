@@ -39,7 +39,7 @@ import java.util.Arrays;
 
 public class LocalStorageEngine {
     private static Logger logger = LoggerFactory.getLogger(LocalStorageEngine.class);
-    public static final String storeEngineConf = ConfigurationManager.getConfiguration().getString("LocalStoreEngine", "KC");
+    public static final String storeEngineConf = ConfigurationManager.getConfiguration().getString("LocalStoreEngine", "InMem");
     public static final Boolean ignoreHistoryWhenNoOffsetFoundInStore = ConfigurationManager.getConfiguration().getBoolean("IgnoreHistoryWhenNoOffsetFoundInStore", false);
 
     private static final int writeBufferSize = 5000;
@@ -115,10 +115,10 @@ public class LocalStorageEngine {
      * Close all database.
      */
     public void close(int partitionId) {
-            if(stores[partitionId] != null){
-                stores[partitionId].close();
-                stores[partitionId] = null;
-            }
+        if(stores[partitionId] != null){
+            stores[partitionId].close();
+            stores[partitionId] = null;
+        }
 
     }
 
@@ -129,7 +129,7 @@ public class LocalStorageEngine {
      * @return
      */
     protected int getDbIndex(byte[] key) {
-            return (int) (Arrays.hashCode(key) % numStores);
+        return (int) (Arrays.hashCode(key) % numStores);
     }
 
     /**
@@ -277,25 +277,25 @@ public class LocalStorageEngine {
 
 
     private interface StoreEngine {
-        public void init(int dbIndex);
-        public void forceFlush(boolean forceFlush);
-        public void open() throws Exception;
-        public void close();
-        public void store(byte[] key, byte[] value) throws Exception;
-        public void storeOffset(long value) throws Exception;
-        public byte[] get(byte[] key);
-        public long getOffset();
-        public boolean delete(byte[] key);
-        public long count();
-        public Iterator iterate(long id);
-        public void iterateWithReadLock(Visitor visitor);
-        public void jump(byte[] key,long id);
+        void init(int dbIndex);
+        void forceFlush(boolean forceFlush);
+        void open() throws Exception;
+        void close();
+        void store(byte[] key, byte[] value) throws Exception;
+        void storeOffset(long value) throws Exception;
+        byte[] get(byte[] key);
+        long getOffset();
+        boolean delete(byte[] key);
+        long count();
+        Iterator iterate(long id);
+        void iterateWithReadLock(Visitor visitor);
+        void jump(byte[] key,long id);
     };
 
     private class InMemStoreEngine implements StoreEngine {
         private Logger logger = LoggerFactory.getLogger(InMemStoreEngine.class);
         private int dbIndex;
-        private ConcurrentHashMap<ByteArrayWrapper, byte[]> db = new ConcurrentHashMap<ByteArrayWrapper, byte[]>();
+        private ConcurrentHashMap<ByteArrayWrapper, byte[]> db = new ConcurrentHashMap<>();
         private AtomicInteger flushCounter;
         private final static int PER_OFFSET_FLUSH = 100;
         private static final String offsetKey  = "offset_storage_tk";
@@ -323,6 +323,8 @@ public class LocalStorageEngine {
                 db.put(new ByteArrayWrapper(offsetKey.getBytes(),offsetKey.getBytes().length), Convert.longToBytes(offset));
             }
         }
+
+
         public void store(byte[] key, byte[] value) throws Exception {
             try {
                 ByteArrayWrapper baw = new ByteArrayWrapper(key, key.length);
@@ -379,7 +381,7 @@ public class LocalStorageEngine {
             try{
                 db.remove(new ByteArrayWrapper(key, key.length));
             } catch (Exception e) {
-                 return false;
+                return false;
             }
             return true;
 
@@ -395,10 +397,10 @@ public class LocalStorageEngine {
             logger.info("dont support iterate");
         }
         @Override
-    public void jump(byte[] key, long id) {
-        // TODO Auto-generated method stub
+        public void jump(byte[] key, long id) {
+            // TODO Auto-generated method stub
 
-    }
+        }
     }
 
     private class RocksDBStoreEngine implements StoreEngine {
@@ -501,7 +503,7 @@ public class LocalStorageEngine {
             try{
                 db.remove((key));
             } catch (RocksDBException e) {
-                 return false;
+                return false;
             }
             return true;
 
@@ -517,10 +519,10 @@ public class LocalStorageEngine {
             logger.info("dont support iterate");
         }
         @Override
-    public void jump(byte[] key, long id) {
-        // TODO Auto-generated method stub
+        public void jump(byte[] key, long id) {
+            // TODO Auto-generated method stub
 
-    }
+        }
     }
 
     private class KCStoreEngine implements StoreEngine{
@@ -549,8 +551,8 @@ public class LocalStorageEngine {
 
             // use TLINEAR
             hDb = new DB(2);
-            currentMap = new ConcurrentHashMap<ByteArrayWrapper, byte[]>(2 * writeBufferSize);
-            offsetMap = new ConcurrentHashMap<ByteArrayWrapper, byte[]>();
+            currentMap = new ConcurrentHashMap<>(2 * writeBufferSize);
+            offsetMap = new ConcurrentHashMap<>();
             flushCounter = new AtomicInteger(0);
             forceFlush = false;
         }
@@ -714,6 +716,8 @@ public class LocalStorageEngine {
 
         public long getOffset() {
             if (offset == -1) {
+                if(hDb == null)
+                    throw new IllegalStateException("Unable to get offset hDb is null");
                 byte[] result = hDb.get(offsetKey.getBytes());
                 if(result == null){
                     offset = ignoreHistoryWhenNoOffsetFoundInStore ? Long.MAX_VALUE: 0;
@@ -757,9 +761,9 @@ public class LocalStorageEngine {
             PistachiosTkIterator pit = PistachiosTkIterator.getPistachiosTkIterator(itId);
             if(!pit.isCursorSet()){
                 synchronized(pit){
-                if(!pit.isCursorSet()){
-                    pit.setCursor(hDb.cursor());
-                }
+                    if(!pit.isCursorSet()){
+                        pit.setCursor(hDb.cursor());
+                    }
                 }
             }
             return pit;
@@ -769,9 +773,9 @@ public class LocalStorageEngine {
             PistachiosTkIterator pit = PistachiosTkIterator.getPistachiosTkIterator(itId);
             if(!pit.isCursorSet()){
                 synchronized(pit){
-                if(!pit.isCursorSet()){
-                    pit.setCursor(hDb.cursor());
-                }
+                    if(!pit.isCursorSet()){
+                        pit.setCursor(hDb.cursor());
+                    }
                 }
             }
             pit.jump(key);
@@ -817,7 +821,7 @@ public class LocalStorageEngine {
             if (currentMap.size() > 0 || isClosing || forceFlush) {
 
                 prevMap = currentMap;
-                currentMap = new ConcurrentHashMap<ByteArrayWrapper, byte[]>(2 * writeBufferSize);
+                currentMap = new ConcurrentHashMap<>(2 * writeBufferSize);
 
                 long st = System.currentTimeMillis();
                 hDb.begin_transaction(false);

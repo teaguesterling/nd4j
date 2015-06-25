@@ -18,16 +18,16 @@ import java.util.concurrent.Future;
 import org.nd4j.paramserver.pistachio.pb.exception.*;
 
 public interface PistachiosClientImpl {
-    public byte[] lookup(byte[] id, boolean callback) throws MasterNotFoundException, ConnectionBrokenException, Exception;
-    public boolean store(byte[] id, byte[] value, boolean callback) throws MasterNotFoundException, ConnectionBrokenException, Exception;
-    public boolean processBatch(byte[] id, List<byte[]> events) throws MasterNotFoundException, ConnectionBrokenException, Exception;
-    public void close();
+    byte[] lookup(byte[] id, boolean callback) throws MasterNotFoundException, ConnectionBrokenException, Exception;
+    boolean store(byte[] id, byte[] value, boolean callback) throws MasterNotFoundException, ConnectionBrokenException, Exception;
+    boolean processBatch(byte[] id, List<byte[]> events) throws MasterNotFoundException, ConnectionBrokenException, Exception;
+    void close();
 
-    public Map<byte[], byte[]> multiLookup(List<byte[]> ids, boolean callback) throws MasterNotFoundException, ConnectionBrokenException, Exception;
+    Map<byte[], byte[]> multiLookup(List<byte[]> ids, boolean callback) throws MasterNotFoundException, ConnectionBrokenException, Exception;
 
-    public Future<Map<byte[], byte[]>> multiLookupAsync(List<byte[]> ids, boolean callback) throws MasterNotFoundException, ConnectionBrokenException, Exception;
-    public Future<Map<byte[], Boolean>> multiProcessAsync(Map<byte[], byte[]> events) throws MasterNotFoundException, ConnectionBrokenException, Exception;
-    public Future<Boolean> storeAsync(byte[] id, byte[] value) throws MasterNotFoundException, ConnectionBrokenException, Exception;
-    public boolean delete(byte[] id) throws MasterNotFoundException, ConnectionBrokenException;
-    public PistachioIterator iterator(long partitionId);
+    Future<Map<byte[], byte[]>> multiLookupAsync(List<byte[]> ids, boolean callback) throws MasterNotFoundException, ConnectionBrokenException, Exception;
+    Future<Map<byte[], Boolean>> multiProcessAsync(Map<byte[], byte[]> events) throws MasterNotFoundException, ConnectionBrokenException, Exception;
+    Future<Boolean> storeAsync(byte[] id, byte[] value) throws MasterNotFoundException, ConnectionBrokenException, Exception;
+    boolean delete(byte[] id) throws MasterNotFoundException, ConnectionBrokenException;
+    PistachioIterator iterator(long partitionId);
 }

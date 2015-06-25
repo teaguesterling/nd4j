@@ -35,7 +35,7 @@ public class ZooKeeperRunner {
 	private int clientPort = 2181; 
 	private int numConnections = 5000;
 	private int tickTime = 2000;
-	private String dataDirectory = System.getProperty("java.io.tmpdir");
+	private String dataDirectory = System.getProperty("user.home");
 
 	public void run() throws Exception {
 		
@@ -83,5 +83,8 @@ public class ZooKeeperRunner {
 		this.dataDirectory = dataDirectory;
 	}
 
-	
+	@Override
+	public String toString() {
+		return "127.0.0.1:" + clientPort;
+	}
 }

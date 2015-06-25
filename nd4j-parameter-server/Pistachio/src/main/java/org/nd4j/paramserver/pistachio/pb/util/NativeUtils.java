@@ -104,8 +104,9 @@ public class NativeUtils {
         }
 
         // Prepare temporary file
-        logger.debug("create lib file {}", System.getProperty("java.library.path") + "/" + filename);
-        File temp = new File(System.getProperty("java.library.path") + "/" + filename);//File.createTempFile(prefix, suffix);
+        String tempPath = System.getProperty("user.home") + File.separator + filename;
+        logger.debug("create lib file {}", tempPath);
+        File temp = new File(tempPath);//File.createTempFile(prefix, suffix);
         temp.createNewFile();
         temp.deleteOnExit();
 
@@ -130,6 +131,7 @@ public class NativeUtils {
                 os.write(buffer, 0, readBytes);
             }
         } finally {
+            os.flush();
             // If read/write fails, close streams safely before throwing an exception
             os.close();
             is.close();

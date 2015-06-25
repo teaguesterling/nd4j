@@ -195,7 +195,7 @@ public class PistachiosClient {
      * @exception       ConnectionBrokenException when fail because connection is broken in the middle
      * @exception       Exception other errors indicating failure
      */
-    public byte[] lookup(byte[] id) throws MasterNotFoundException, ConnectionBrokenException, Exception{
+    public byte[] lookup(byte[] id) throws Exception {
         return lookup(id, false);
     }
 
@@ -210,7 +210,7 @@ public class PistachiosClient {
      * @exception       ConnectionBrokenException when fail because connection is broken in the middle
      * @exception       Exception other errors indicating failure
      */
-    public byte[] lookup(byte[] id, boolean callback) throws MasterNotFoundException, ConnectionBrokenException, Exception{
+    public byte[] lookup(byte[] id, boolean callback) throws Exception {
 
         final Timer.Context context = lookupTimer.time();
         RetryWaiter retryWaiter = new RetryWaiter(lookupFailureRequests);
@@ -339,7 +339,7 @@ public class PistachiosClient {
      * @exception       Exception other errors indicating failure
      * @return          <code>boolean</code> succeeded or not
      */
-    public boolean store(byte[] id, byte[] value, boolean callback)  throws MasterNotFoundException, ConnectionBrokenException, Exception{
+    public boolean store(byte[] id, byte[] value, boolean callback)  throws  Exception {
         final Timer.Context context = storeTimer.time();
         RetryWaiter retryWaiter = new RetryWaiter(storeFailureRequests);
 
