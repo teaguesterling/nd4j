@@ -27,6 +27,7 @@ import org.nd4j.linalg.jcublas.buffer.CudaDoubleDataBuffer;
 import org.nd4j.linalg.jcublas.buffer.CudaFloatDataBuffer;
 import org.nd4j.linalg.jcublas.buffer.JCudaBuffer;
 import org.nd4j.linalg.jcublas.context.ContextHolder;
+import org.nd4j.linalg.jcublas.context.CudaContext;
 import org.springframework.core.io.ClassPathResource;
 
 import java.io.IOException;
@@ -103,10 +104,9 @@ public class KernelFunctions {
      * @param kernelParameters the parameters
      * @param dataType         the data type to use
      */
-    public static  void invoke(int blocks, int threadsPerBlock, String functionName,String dataType,Object...kernelParameters) {
-        ContextHolder.getInstance().syncStream();
+    public static  void invoke(int blocks, int threadsPerBlock, String functionName,String dataType,CudaContext cudaContext,Object...kernelParameters) {
         // Call the kernel function.
-        CUstream stream = ContextHolder.getInstance().getStream();
+        CUstream stream =  cudaContext.getStream();
         int sharedMemSize = threadsPerBlock * (dataType.equals("float") ? Sizeof.FLOAT : Sizeof.DOUBLE) * 2;
         KernelLauncher launcher = KernelFunctionLoader.launcher(functionName, dataType);
         if(launcher == null)
@@ -118,7 +118,6 @@ public class KernelFunctions {
                 .setSharedMemSize(sharedMemSize)
                 .call(kernelParameters);
 
-        ContextHolder.syncStream();
 
     }
 

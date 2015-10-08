@@ -34,6 +34,7 @@ import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.jcublas.SimpleJCublas;
 import org.nd4j.linalg.jcublas.buffer.JCudaBuffer;
 import org.nd4j.linalg.jcublas.context.ContextHolder;
+import org.nd4j.linalg.jcublas.context.CudaContext;
 import org.nd4j.linalg.jcublas.kernel.KernelFunctionLoader;
 import org.nd4j.linalg.jcublas.kernel.KernelFunctions;
 import org.nd4j.linalg.jcublas.util.KernelParamsWrapper;
@@ -155,7 +156,8 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             };
 
             try(KernelParamsWrapper kParams = new KernelParamsWrapper(kernelParams).setResultOp(op, result)) {
-                invokeFunction(op, kParams.getKernelParameters());
+                invokeFunction(op, kParams.getContext(),kParams.getKernelParameters());
+                kParams.sync();
                 kParams.close();
             } catch(Exception e) {
                 throw new RuntimeException("Could not execute kernel", e);
@@ -181,7 +183,8 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             };
 
             try(KernelParamsWrapper kParams = new KernelParamsWrapper(kernelParams).setResultOp(op, result)) {
-                invokeFunction(op, kParams.getKernelParameters());
+                invokeFunction(op, kParams.getContext(),kParams.getKernelParameters());
+                kParams.sync();
                 kParams.close();
             } catch(Exception e) {
                 throw new RuntimeException("Could not execute kernel", e);
@@ -193,7 +196,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
     }
 
 
-    private void invokeFunction(Op op, Object... kernelParams) {
+    private void invokeFunction(Op op,CudaContext cudaContext, Object... kernelParams) {
         /**
          * Invoke a cuda kernel by name. This will be wrt the function name.
          * Functions that are accumulations or transforms have names that end with _strided.
@@ -202,14 +205,13 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
         String functionName = op instanceof TransformOp || op instanceof Accumulation ? op.name() + "_strided" : op.name();
         int blocks = PointerUtil.getNumBlocks(op.n(), KernelFunctions.BLOCKS, KernelFunctions.THREADS);
         int threads = ContextHolder.getInstance().getNumThreads(op);
-        //int blocks = 1;
-        //int threads = 1;
+
 
         KernelFunctions.invoke(
                 blocks
                 ,threads
                 ,functionName
-                ,getType(op)
+                ,getType(op),cudaContext
                 ,kernelParams);
 
     }
@@ -248,7 +250,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             };
 
             try(KernelParamsWrapper kParams = new KernelParamsWrapper(kernelParams).setResultArray(op.z())) {
-                invokeFunction(op, kParams.getKernelParameters());
+                invokeFunction(op,kParams.getContext(), kParams.getKernelParameters());
             } catch(Exception e) {
                 throw new RuntimeException("Could not execute kernel", e);
             }
@@ -273,7 +275,8 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             };
 
             try(KernelParamsWrapper kParams = new KernelParamsWrapper(kernelParams).setResultArray(op.z())) {
-                invokeFunction(op, kParams.getKernelParameters());
+                invokeFunction(op, kParams.getContext(),kParams.getKernelParameters());
+                kParams.sync();
                 kParams.close();
             }
 
@@ -334,7 +337,9 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             };
 
             try(KernelParamsWrapper kParams = new KernelParamsWrapper(kernelParams).setResultArray(op.z())) {
-                invokeFunction(op, kParams.getKernelParameters());
+                invokeFunction(op, kParams.getContext(),kParams.getKernelParameters());
+                kParams.sync();
+
             } catch(Exception e) {
                 throw new RuntimeException("Could not execute kernel", e);
             }
@@ -352,7 +357,8 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             };
 
             try(KernelParamsWrapper kParams = new KernelParamsWrapper(kernelParams).setResultArray(op.z())) {
-                invokeFunction(op, kParams.getKernelParameters());
+                invokeFunction(op, kParams.getContext(),kParams.getKernelParameters());
+                kParams.sync();
             } catch(Exception e) {
                 throw new RuntimeException("Could not execute kernel", e);
             }

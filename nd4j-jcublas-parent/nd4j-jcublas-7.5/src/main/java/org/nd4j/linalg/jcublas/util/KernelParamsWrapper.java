@@ -139,6 +139,7 @@ public class KernelParamsWrapper implements AutoCloseable {
         resultPointers = new ArrayList<>();
         context = new CudaContext();
         context.initOldStream();
+        context.initStream();
         for(int i = 0; i < kernelParams.length; i++) {
             Object arg = kernelParams[i];
 
@@ -161,6 +162,7 @@ public class KernelParamsWrapper implements AutoCloseable {
 
         }
 
+        context.syncOldStream();
 
     }
 
@@ -189,6 +191,7 @@ public class KernelParamsWrapper implements AutoCloseable {
         long[] total = new long[1];
         cuMemGetInfo(free, total);
 
+        context.close();
         closeInvoked = true;
     }
 
@@ -215,7 +218,6 @@ public class KernelParamsWrapper implements AutoCloseable {
             if(acc instanceof Accumulation) {
                 Accumulation acc2 = (Accumulation) acc;
                 acc2.setCurrentResult(data[0]);
-                //acc2.setCurrentResultComplex(new ComplexDouble(data[0],data[1]));
             }
 
 
@@ -236,9 +238,23 @@ public class KernelParamsWrapper implements AutoCloseable {
             if(acc instanceof Accumulation) {
                 Accumulation acc2 = (Accumulation) acc;
                 acc2.setCurrentResult(data[0]);
-                acc2.setCurrentResultComplex(new ComplexDouble(data[0],data[1]));
             }
         }
     }
+
+    public CudaContext getContext() {
+        return context;
+    }
+
+    /**
+     * Sync the streams
+     */
+    public void sync() {
+        if(context.getOldStream() != null)
+            context.syncOldStream();
+        if(context.getStream() != null)
+            context.syncStream();
+    }
+
 
 }

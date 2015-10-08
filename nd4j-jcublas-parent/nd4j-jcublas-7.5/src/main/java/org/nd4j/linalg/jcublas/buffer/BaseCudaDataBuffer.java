@@ -616,6 +616,7 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
             throw new IllegalStateException("No offset found to copy");
         //synchronize for the copy to avoid data inconsistencies
         context.syncOldStream();
+        context.syncStream();
     }
 
     @Override

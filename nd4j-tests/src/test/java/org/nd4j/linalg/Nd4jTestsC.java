@@ -327,8 +327,6 @@ public  class Nd4jTestsC extends BaseNd4jTest {
     @Test
     public void testBroadCasting() {
         INDArray first = Nd4j.arange(0, 3).reshape(3, 1);
-        INDArray matrix = Nd4j.create(new double[][]{{1,2},{3,4}});
-        INDArray column = matrix.getColumn(1);
         INDArray ret = first.broadcast(3, 4);
         INDArray testRet = Nd4j.create(new double[][]{
                 {0, 0, 0, 0},

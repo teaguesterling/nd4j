@@ -70,8 +70,11 @@ public class CudaContext implements AutoCloseable {
      * Initializes the stream
      */
     public void initStream() {
-        stream = new CUstream();
-        JCudaDriver.cuStreamCreate(stream, CUstream_flags.CU_STREAM_NON_BLOCKING);
+        if(stream == null) {
+            stream = new CUstream();
+            JCudaDriver.cuStreamCreate(stream, CUstream_flags.CU_STREAM_NON_BLOCKING);
+        }
+
 
     }
 
@@ -79,8 +82,11 @@ public class CudaContext implements AutoCloseable {
      * Initializes the old stream
      */
     public void initOldStream() {
-        oldStream = new cudaStream_t();
-        JCuda.cudaStreamCreate(oldStream);
+        if(oldStream == null)  {
+            oldStream = new cudaStream_t();
+            JCuda.cudaStreamCreate(oldStream);
+        }
+
 
     }
 
@@ -92,9 +98,12 @@ public class CudaContext implements AutoCloseable {
      *
      */
     public void initHandle() {
-        handle = new cublasHandle();
-        JCublas2.cublasCreate(handle);
-        associateHandle();
+        if(handle == null) {
+            handle = new cublasHandle();
+            JCublas2.cublasCreate(handle);
+            associateHandle();
+        }
+
     }
 
     /**
@@ -134,6 +143,11 @@ public class CudaContext implements AutoCloseable {
         ctx.initOldStream();
         ctx.initHandle();
         return ctx;
+    }
+
+
+    public void syncDevice() {
+        JCuda.cudaDeviceSynchronize();
     }
 
     @Override

@@ -1024,12 +1024,6 @@ public class KernelLauncher {
                 Pointer.to(kernelParameters), null
         );
 
-        ContextHolder.syncStream();
-        try {
-            //SimpleJCublas.sync();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
 
     }
 
