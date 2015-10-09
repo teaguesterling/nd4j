@@ -134,7 +134,7 @@ public class KernelParamsWrapper implements AutoCloseable {
      * @param kernelParams
      */
     public KernelParamsWrapper(Object... kernelParams) {
-        this(false,kernelParams);
+        this(false, kernelParams);
     }
     /**
      * Create a new wrapper for the kernel parameters.
@@ -190,8 +190,10 @@ public class KernelParamsWrapper implements AutoCloseable {
 
         for(CublasPointer cublasPointer : pointersToFree) {
             if(resultPointers.contains(cublasPointer)) {
-                if(resultOp != null) {
-                    setResultForOp(resultOp, cublasPointer);
+                //sets the result for the buffer
+                //since this ends up being a scalar
+                if(cublasPointer.getBuffer().length() == 1) {
+                    setResultForOp((Accumulation) resultOp, cublasPointer);
                 }
                 else
                     cublasPointer.copyToHost();
@@ -215,44 +217,11 @@ public class KernelParamsWrapper implements AutoCloseable {
      * @param devicePointer
      */
     private void setResultForOp(Op acc, CublasPointer devicePointer) {
-        int threads = PointerUtil.getNumThreads(acc.n(), KernelFunctions.THREADS);
-        if (devicePointer.getBuffer().dataType() == DataBuffer.Type.DOUBLE) {
-            double[] data = new double[threads];
-            Pointer get = Pointer.to(data);
+        devicePointer.copyToHost();
+        if(acc instanceof Accumulation) {
+            Accumulation acc2 = (Accumulation) acc;
+            acc2.setCurrentResult(devicePointer.getBuffer().getDouble(0));
 
-            JCuda.cudaMemcpyAsync(
-                    get
-                    , devicePointer.getDevicePointer()
-                    , threads * Sizeof.DOUBLE
-                    , cudaMemcpyKind.cudaMemcpyDeviceToHost
-                    , context.getOldStream());
-            context.syncOldStream();
-
-
-            if(acc instanceof Accumulation) {
-                Accumulation acc2 = (Accumulation) acc;
-                acc2.setCurrentResult(data[0]);
-            }
-
-
-        }
-        else {
-            float[] data = new float[threads];
-            Pointer get = Pointer.to(data);
-
-            JCuda.cudaMemcpyAsync(
-                    get
-                    , devicePointer.getDevicePointer()
-                    , threads * Sizeof.FLOAT
-                    , cudaMemcpyKind.cudaMemcpyDeviceToHost
-                    , context.getOldStream());
-            context.syncOldStream();
-
-
-            if(acc instanceof Accumulation) {
-                Accumulation acc2 = (Accumulation) acc;
-                acc2.setCurrentResult(data[0]);
-            }
         }
     }
 

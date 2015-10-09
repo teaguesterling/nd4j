@@ -39,7 +39,6 @@ import org.nd4j.linalg.jcublas.complex.CudaComplexConversion;
 import org.nd4j.linalg.jcublas.context.ContextHolder;
 import org.nd4j.linalg.jcublas.context.CudaContext;
 import org.nd4j.linalg.jcublas.util.PointerUtil;
-import org.nd4j.linalg.util.SynchronizedTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

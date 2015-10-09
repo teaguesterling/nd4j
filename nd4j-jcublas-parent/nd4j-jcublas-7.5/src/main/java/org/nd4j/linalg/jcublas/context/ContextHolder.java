@@ -89,9 +89,7 @@ public class ContextHolder {
     private ObjectPool<cudaStream_t> oldStreamPool;
     private static ContextHolder INSTANCE;
     public final static String DEVICES_TO_BAN = "org.nd4j.linalg.jcuda.jcublas.ban_devices";
-    public final static String SYNC_THREADS = "org.nd4j.linalg.jcuda.jcublas.syncthreads";
 
-    private static boolean syncThreads = true;
     private boolean confCalled = false;
     private static Logger log = LoggerFactory.getLogger(ContextHolder.class);
     private AtomicBoolean shutdown = new AtomicBoolean(false);
@@ -100,11 +98,12 @@ public class ContextHolder {
         try {
             getNumDevices();
             GenericObjectPoolConfig config = new GenericObjectPoolConfig();
-            config.setMaxIdle(1);
-            config.setMaxTotal(Runtime.getRuntime().availableProcessors() * 3);
-            config.setTestOnBorrow(true);
-            config.setTestOnReturn(true);
+            config.setMaxIdle(10);
+            config.setMaxTotal(10ce'');
             handlePool = new CublasHandlePool(new CublasHandlePooledItemFactory(),config);
+            GenericObjectPoolConfig confClone = config.clone();
+            confClone.setMaxTotal(Runtime.getRuntime().availableProcessors() * 10000);
+
             streamPool = new StreamPool(new StreamItemFactory(),config);
             oldStreamPool = new OldStreamPool(new OldStreamItemFactory(),config);
         }catch(Exception e) {
@@ -218,7 +217,6 @@ public class ContextHolder {
             return;
 
 
-        syncThreads = Boolean.parseBoolean(System.getProperty(SYNC_THREADS,"true"));
         //force certain ops to have a certain number of threads
         Properties threadProps = new Properties();
         try {

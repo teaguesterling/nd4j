@@ -1,5 +1,6 @@
 package org.nd4j.linalg.jcublas.context;
 
+import jcuda.Pointer;
 import jcuda.driver.CUstream;
 import jcuda.driver.CUstream_flags;
 import jcuda.driver.JCudaDriver;
@@ -23,7 +24,7 @@ public class CudaContext implements AutoCloseable {
     private CUstream stream;
     private cudaStream_t oldStream;
     private cublasHandle handle;
-
+    private Pointer resultPointer;
 
     public CudaContext() {
         ContextHolder.getInstance().setContext();

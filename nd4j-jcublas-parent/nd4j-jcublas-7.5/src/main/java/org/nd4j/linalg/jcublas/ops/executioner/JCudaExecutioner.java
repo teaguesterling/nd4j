@@ -25,13 +25,13 @@ import org.nd4j.linalg.api.buffer.DataBuffer;
 import org.nd4j.linalg.api.complex.IComplexNDArray;
 import org.nd4j.linalg.api.complex.IComplexNumber;
 import org.nd4j.linalg.api.ndarray.INDArray;
-import org.nd4j.linalg.api.ndarray.LinearViewNDArray;
 import org.nd4j.linalg.api.ops.Accumulation;
 import org.nd4j.linalg.api.ops.Op;
 import org.nd4j.linalg.api.ops.ScalarOp;
 import org.nd4j.linalg.api.ops.TransformOp;
 import org.nd4j.linalg.api.ops.executioner.DefaultOpExecutioner;
 import org.nd4j.linalg.factory.Nd4j;
+import org.nd4j.linalg.jcublas.CublasPointer;
 import org.nd4j.linalg.jcublas.SimpleJCublas;
 import org.nd4j.linalg.jcublas.buffer.JCudaBuffer;
 import org.nd4j.linalg.jcublas.context.ContextHolder;
@@ -40,6 +40,10 @@ import org.nd4j.linalg.jcublas.kernel.KernelFunctionLoader;
 import org.nd4j.linalg.jcublas.kernel.KernelFunctions;
 import org.nd4j.linalg.jcublas.util.KernelParamsWrapper;
 import org.nd4j.linalg.jcublas.util.PointerUtil;
+import org.nd4j.linalg.util.ArrayUtil;
+
+import java.util.ArrayList;
+import java.util.List;
 
 
 /**
@@ -65,7 +69,92 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
 
     @Override
     public INDArray exec(Accumulation op, int... dimension) {
-   return super.exec(op,dimension);
+        //do op along all dimensions
+        if(dimension.length == op.x().rank())
+            dimension = new int[] {Integer.MAX_VALUE};
+
+
+        if(op.isPassThrough()) {
+            op.exec(dimension);
+            return op.z();
+        }
+
+
+        if(dimension[0] == Integer.MAX_VALUE) {
+            if(op.x() instanceof IComplexNDArray)
+                return Nd4j.scalar(execAndReturn(op).currentResultComplex());
+            return Nd4j.scalar(execAndReturn(op).currentResult().doubleValue());
+        }
+
+        if(op instanceof IComplexNDArray) {
+            int[] retShape = ArrayUtil.removeIndex(op.x().shape(), dimension);
+            //ensure vector is proper shape
+            if(retShape.length == 1) {
+                if(dimension[0] == 0)
+                    retShape = new int[] {1,retShape[0]};
+                else
+                    retShape = new int[] {retShape[0],1};
+
+            }
+            else if(retShape.length == 0) {
+                retShape = new int[] {1,1};
+            }
+
+            IComplexNDArray ret = Nd4j.createComplex(retShape);
+            IComplexNDArray linear = ret;
+            for (int i = 0; i < op.x().tensorssAlongDimension(dimension); i++) {
+                Op op2 = op.opForDimension(i, dimension);
+                IComplexNumber result = execAndReturn((Accumulation) op2).currentResultComplex();
+                linear.putScalar(i, result);
+
+            }
+
+            if(ret.ordering() == 'c')
+                ret.setStride(ArrayUtil.reverseCopy(ret.stride()));
+
+
+            return ret;
+        }
+
+        else {
+            int[] retShape = ArrayUtil.removeIndex(op.x().shape(), dimension);
+            //ensure vector is proper shape
+            if(retShape.length == 1) {
+                if(dimension[0] == 0)
+                    retShape = new int[] {1,retShape[0]};
+                else
+                    retShape = new int[] {retShape[0],1};
+
+            }
+            else if(retShape.length == 0) {
+                retShape = new int[] {1,1};
+            }
+
+            INDArray retArray = Nd4j.create(retShape);
+            List<CudaContext> contexts = new ArrayList<>();
+            List<Accumulation> results = new ArrayList<>();
+            for (int i = 0; i < op.x().tensorssAlongDimension(dimension); i++) {
+                Op op2 = op.opForDimension(i, dimension);
+                Accumulation op3 = (Accumulation) op2;
+                results.add(op3);
+                CudaContext ctx = invoke(op3, i,retArray, false);
+                contexts.add(ctx);
+
+            }
+
+            for(CudaContext ctx : contexts) {
+                ctx.syncOldStream();
+                ctx.syncStream();
+                ctx.destroy();
+            }
+
+            //uses the data buffer that was accumulated on the gpu
+           retArray.setData(results.get(0).z().data());
+
+            return retArray;
+        }
+
+
     }
 
     @Override
@@ -96,7 +185,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
     @Override
     public Op exec(Op op) {
         checkOp(op);
-        //linear views and oblong offsets can't be handled by the gpu (due to the way the buffers are interpeted as vectors)
+        //linear views and oblong offsets can't be handled by the gpu (due to the way the buffers are interpreted as vectors)
         if(op.x() instanceof IComplexNDArray
                 || executionMode() == ExecutionMode.JAVA || op.isPassThrough())
             return super.exec(op);
@@ -106,7 +195,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             invoke(t,true);
         } else if (op instanceof Accumulation) {
             Accumulation acc = (Accumulation) op;
-            invoke(acc,true);
+            invoke(acc,0,Nd4j.scalar(0),true);
         } else if (op instanceof ScalarOp) {
             ScalarOp sc = (ScalarOp) op;
             invoke(sc,true);
@@ -153,15 +242,13 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
     }
 
 
-    private CudaContext invoke(Accumulation op,boolean sync)  {
+    private CudaContext invoke(Accumulation op,int i,INDArray result,boolean sync)  {
         checkOp(op);
         CudaContext ctx;
 
         if(!KernelFunctionLoader.getInstance().exists(op.name()) || executionMode() == ExecutionMode.JAVA || op.isPassThrough())
             super.exec(op);
 
-        int threads = PointerUtil.getNumThreads(op.n(), KernelFunctions.THREADS);
-        INDArray result = Nd4j.create(threads);
 
 
         if (op.y() != null) {
@@ -175,7 +262,6 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                 op.setY(op.y().dup());
             }
 
-            //int n,int xOffset,int yOffset, double *dx, double *dy,int incx,int incy,double *result
             Object[] kernelParams = new Object[] {
                     op.n(),
                     op.x().offset(),
@@ -185,7 +271,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                     BlasBufferUtil.getBlasStride(op.x()),
                     BlasBufferUtil.getBlasStride(op.y()),
                     toArgs(op.extraArgs(), getType(op)),
-                    result
+                    result,i
             };
 
             try(KernelParamsWrapper kParams = new KernelParamsWrapper(sync,kernelParams).setResultOp(op, result)) {
@@ -214,7 +300,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                     op.x(),
                     BlasBufferUtil.getBlasStride(op.x()),
                     toArgs(op.extraArgs(), getType(op)),
-                    result
+                    result,i
             };
 
             try(KernelParamsWrapper kParams = new KernelParamsWrapper(sync,kernelParams).setResultOp(op, result)) {
@@ -367,7 +453,6 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
 
 
         } else {
-            //int n,int idx,double *dy,int incy,double *result
             Object[] kernelParams = new Object[] {
                     op.n(),
                     op.x().offset(),
@@ -411,12 +496,6 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                 ,kernelParams);
 
     }
-
-
-
-
-
-
 
     private String getType(Op op) {
         return op.x().data().dataType() == DataBuffer.Type.DOUBLE ? "double" : "float";
