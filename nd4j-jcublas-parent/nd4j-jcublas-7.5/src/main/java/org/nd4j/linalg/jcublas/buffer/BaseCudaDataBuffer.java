@@ -84,23 +84,23 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
 
     public BaseCudaDataBuffer(ByteBuf buf, int length) {
         super(buf, length);
-      //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
+        //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
     }
 
     public BaseCudaDataBuffer(float[] data, boolean copy) {
         super(data, copy);
-      //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
+        //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
 
     }
 
     public BaseCudaDataBuffer(double[] data, boolean copy) {
         super(data, copy);
-      //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
+        //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
     }
 
     public BaseCudaDataBuffer(int[] data, boolean copy) {
         super(data, copy);
-      //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
+        //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
 
     }
 
@@ -112,37 +112,51 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
      */
     public BaseCudaDataBuffer(int length, int elementSize) {
         super(length,elementSize);
-      //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
+        //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
 
     }
 
     public BaseCudaDataBuffer(int length) {
         super(length);
-      //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
+        //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
 
     }
 
     public BaseCudaDataBuffer(float[] data) {
         super(data);
-      //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
+        //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
 
     }
 
     public BaseCudaDataBuffer(int[] data) {
         super(data);
-      //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
+        //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
 
     }
 
     public BaseCudaDataBuffer(double[] data) {
         super(data);
-      //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
+        //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
 
     }
 
     public BaseCudaDataBuffer(byte[] data, int length) {
         super(data,length);
-      //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
+        //  pointersToContexts = new SynchronizedTable<>(pointersToContexts);
+    }
+
+    @Override
+    public void copyAtStride(DataBuffer buf, int n, int stride, int yStride, int offset, int yOffset) {
+        super.copyAtStride(buf, n, stride, yStride, offset, yOffset);
+        if(buf instanceof JCudaBuffer) {
+            JCudaBuffer buf2 = (JCudaBuffer) buf;
+            ByteBuffer nio = buf2.asNio();
+            for(DevicePointerInfo info : pointersToContexts.values()) {
+                //only update offset zero per thread: nothing else matters
+                if(info.getOffset() == 0)
+                    JCublas2.cublasSetVector(n, getElementSize(), Pointer.to(nio), stride, info.getPointer(), yStride);
+            }
+        }
     }
 
     @Override
@@ -435,13 +449,12 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
 
     @Override
     public void set(Pointer pointer) {
-
         modified.set(true);
 
         if (dataType() == DataBuffer.Type.DOUBLE) {
             JCublas2.cublasDcopy(
                     ContextHolder.getInstance().getHandle(),
-                     length(),
+                    length(),
                     pointer,
                     1,
                     getHostPointer(),
@@ -450,7 +463,7 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
         } else {
             JCublas2.cublasScopy(
                     ContextHolder.getInstance().getHandle(),
-                    (int) length(),
+                    length(),
                     pointer,
                     1,
                     getHostPointer(),
@@ -463,7 +476,34 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
 
 
 
+    private void copyOneElement(int i,double val) {
+        CudaContext ctx = new CudaContext();
+        ctx.initOldStream();
+        if(pointersToContexts != null)
+            for(DevicePointerInfo info : pointersToContexts.values()) {
+                if(dataType() == Type.FLOAT)
+                    JCublas2.cublasSetVector(1,getElementSize(),Pointer.to(new float[]{(float) val}),1,info.getPointer().withByteOffset(getElementSize() * i),1);
+                else
+                    JCublas2.cublasSetVector(1,getElementSize(),Pointer.to(new double[]{val}),1,info.getPointer().withByteOffset(getElementSize() * i),1);
 
+            }
+        ctx.syncOldStream();
+        ctx.destroy();
+    }
+
+
+    @Override
+    public void put(int i, float element) {
+        super.put(i, element);
+        copyOneElement(i, element);
+    }
+
+    @Override
+    public void put(int i, double element) {
+        super.put(i, element);
+        copyOneElement(i, element);
+
+    }
 
     @Override
     public IComplexFloat getComplexFloat(int i) {
@@ -615,7 +655,6 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
             throw new IllegalStateException("No offset found to copy");
         //synchronize for the copy to avoid data inconsistencies
         context.syncOldStream();
-        context.syncStream();
     }
 
     @Override

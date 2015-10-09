@@ -106,7 +106,6 @@ public class KernelFunctions {
      */
     public static  void invoke(int blocks, int threadsPerBlock, String functionName,String dataType,CudaContext cudaContext,Object...kernelParameters) {
         // Call the kernel function.
-        CUstream stream =  cudaContext.getStream();
         int sharedMemSize = threadsPerBlock * (dataType.equals("float") ? Sizeof.FLOAT : Sizeof.DOUBLE) * 2;
         KernelLauncher launcher = KernelFunctionLoader.launcher(functionName, dataType);
         if(launcher == null)
@@ -114,10 +113,10 @@ public class KernelFunctions {
 
         launcher.forFunction(functionName + "_" + dataType)
                 .setBlockSize(threadsPerBlock,1,1)
-                .setGridSize(blocks,1,1).setStream(stream)
+                .setGridSize(blocks,1,1).setStream(cudaContext.getStream())
                 .setSharedMemSize(sharedMemSize)
                 .call(kernelParameters);
-
+        cudaContext.syncStream();
 
     }
 

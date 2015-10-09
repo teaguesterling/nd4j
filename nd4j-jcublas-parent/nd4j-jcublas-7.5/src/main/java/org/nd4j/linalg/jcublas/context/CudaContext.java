@@ -10,6 +10,8 @@ import jcuda.runtime.JCuda;
 import jcuda.runtime.cudaStream_t;
 import lombok.Data;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * A higher level class for handling
  * the different primitives around the cuda apis
@@ -25,6 +27,9 @@ public class CudaContext implements AutoCloseable {
     private cudaStream_t oldStream;
     private cublasHandle handle;
     private Pointer resultPointer;
+    private AtomicBoolean oldStreamReturned = new AtomicBoolean(false);
+    private AtomicBoolean handleReturned = new AtomicBoolean(false);
+    private AtomicBoolean streamReturned = new AtomicBoolean(false);
 
     public CudaContext() {
         ContextHolder.getInstance().setContext();
@@ -121,29 +126,29 @@ public class CudaContext implements AutoCloseable {
      * and associated resources
      */
     public void destroy() {
-        if(handle != null) {
+        if(handle != null && !handleReturned.get()) {
             try {
                 ContextHolder.getInstance().getHandlePool().returnObject(handle);
+                handleReturned.set(true);
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            //JCublas2.cublasDestroy(handle);
         }
-        if(stream != null) {
+        if(stream != null && !streamReturned.get()) {
             try {
                 ContextHolder.getInstance().getStreamPool().returnObject(stream);
+                streamReturned.set(true);
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            //  JCudaDriver.cuStreamDestroy(stream);
         }
-        if(oldStream != null) {
+        if(oldStream != null && !oldStreamReturned.get()) {
             try {
                 ContextHolder.getInstance().getOldStreamPool().returnObject(oldStream);
+                oldStreamReturned.set(true);
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            //JCuda.cudaStreamDestroy(oldStream);
         }
     }
 

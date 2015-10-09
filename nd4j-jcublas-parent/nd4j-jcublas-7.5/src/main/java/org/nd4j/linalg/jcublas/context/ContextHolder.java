@@ -98,14 +98,22 @@ public class ContextHolder {
         try {
             getNumDevices();
             GenericObjectPoolConfig config = new GenericObjectPoolConfig();
+            config.setJmxEnabled(true);
             config.setMaxIdle(Runtime.getRuntime().availableProcessors());
             config.setMaxTotal(Runtime.getRuntime().availableProcessors());
+            config.setMinIdle(Runtime.getRuntime().availableProcessors());
+            config.setJmxNameBase("handles");
             handlePool = new CublasHandlePool(new CublasHandlePooledItemFactory(),config);
             GenericObjectPoolConfig confClone = config.clone();
-            confClone.setMaxTotal(Runtime.getRuntime().availableProcessors() * 10000);
-            confClone.setMaxIdle(Runtime.getRuntime().availableProcessors() * 10000);
-            streamPool = new StreamPool(new StreamItemFactory(),confClone);
-            oldStreamPool = new OldStreamPool(new OldStreamItemFactory(),confClone);
+            confClone.setMaxTotal(Runtime.getRuntime().availableProcessors() * 10);
+            confClone.setMaxIdle(Runtime.getRuntime().availableProcessors() * 10);
+            confClone.setMinIdle(Runtime.getRuntime().availableProcessors() * 10);
+            GenericObjectPoolConfig streamConf = confClone.clone();
+            streamConf.setJmxNameBase("streams");
+            streamPool = new StreamPool(new StreamItemFactory(),streamConf);
+            GenericObjectPoolConfig oldStreamConf = streamConf.clone();
+            oldStreamConf.setJmxNameBase("oldstream");
+            oldStreamPool = new OldStreamPool(new OldStreamItemFactory(),oldStreamConf);
 
         }catch(Exception e) {
             log.warn("Unable to initialize cuda",e);

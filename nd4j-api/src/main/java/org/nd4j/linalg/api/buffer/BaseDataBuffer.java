@@ -211,6 +211,20 @@ public abstract class BaseDataBuffer implements DataBuffer {
 
     }
 
+    @Override
+    public void copyAtStride(DataBuffer buf, int n, int stride, int yStride, int offset, int yOffset) {
+        if(dataType() == Type.FLOAT) {
+            for(int i = 0; i < n; i++) {
+                put(offset + i * stride,buf.getFloat(yOffset + i * yStride));
+            }
+        }
+        else {
+            for(int i = 0; i < n; i++) {
+                put(offset + i * stride,buf.getDouble(yOffset + i * yStride));
+            }
+        }
+
+    }
 
     @Override
     public void removeReferencing(String id) {
@@ -595,7 +609,7 @@ public abstract class BaseDataBuffer implements DataBuffer {
             return (float) dataBuffer.getDouble(i * getElementSize());
         }
 
-        dirty.set(false);
+        dirty.getAndSet(true);
         return dataBuffer.getFloat(i * getElementSize());
     }
 
@@ -630,7 +644,7 @@ public abstract class BaseDataBuffer implements DataBuffer {
         }
 
 
-        dirty.set(true);
+        dirty.getAndSet(true);
     }
 
     @Override

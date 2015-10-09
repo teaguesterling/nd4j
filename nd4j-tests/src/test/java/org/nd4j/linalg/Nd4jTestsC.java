@@ -301,28 +301,7 @@ public  class Nd4jTestsC extends BaseNd4jTest {
         assertTrue(thirdElem.data() == colVec.data());    //equivalently: should be same object if a view
     }
 
-    @Test
-    public void testLength() {
-        INDArray values = Nd4j.create(2, 2);
-        INDArray values2 = Nd4j.create(2,2);
 
-        values.put(0, 0, 0);
-        values2.put(0, 0, 2);
-        values.put(1, 0, 0);
-        values2.put(1, 0, 2);
-        values.put(0, 1, 0);
-        values2.put(0, 1, 0);
-        values.put(1, 1, 2);
-        values2.put(1, 1, 2);
-
-
-        INDArray expected = Nd4j.repeat(Nd4j.scalar(2), 2);
-
-        Accumulation accum = Nd4j.getOpFactory().createAccum("euclidean", values, values2);
-        INDArray results = Nd4j.getExecutioner().exec(accum, 1);
-        assertEquals(expected,results);
-
-    }
 
     @Test
     public void testBroadCasting() {
@@ -1601,7 +1580,9 @@ public  class Nd4jTestsC extends BaseNd4jTest {
         System.out.println("Out:\n" + out);
 
         int countZero = 0;
-        for( int i=0; i<8; i++ ) if(out.getDouble(i) == 0.0 ) countZero++;
+        for( int i = 0; i < 8; i++ )
+            if(out.getDouble(i) == 0.0 )
+                countZero++;
         assertEquals(countZero, 0);
     }
 

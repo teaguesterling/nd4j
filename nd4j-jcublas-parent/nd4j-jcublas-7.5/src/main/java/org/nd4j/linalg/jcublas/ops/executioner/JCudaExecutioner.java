@@ -130,6 +130,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                 retShape = new int[] {1,1};
             }
 
+
             INDArray retArray = Nd4j.create(retShape);
             List<CudaContext> contexts = new ArrayList<>();
             List<Accumulation> results = new ArrayList<>();
@@ -137,19 +138,15 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                 Op op2 = op.opForDimension(i, dimension);
                 Accumulation op3 = (Accumulation) op2;
                 results.add(op3);
-                CudaContext ctx = invoke(op3, i,retArray, false);
+                CudaContext ctx = invoke(op3, i * op.z().elementWiseStride(),retArray, false);
                 contexts.add(ctx);
-
-            }
-
-            for(CudaContext ctx : contexts) {
-                ctx.syncOldStream();
-                ctx.syncStream();
+                //note here that we are only returning objects to the pool here we aren't actually
+                //getting rid of the contexts, this just makes synchronization easier.
+                //This also prevents blocking with the object pools.
                 ctx.destroy();
+
             }
 
-            //uses the data buffer that was accumulated on the gpu
-           retArray.setData(results.get(0).z().data());
 
             return retArray;
         }
@@ -308,7 +305,6 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                 ctx = kParams.getContext();
                 if(sync)
                     kParams.sync();
-                kParams.close();
             } catch(Exception e) {
                 throw new RuntimeException("Could not execute kernel", e);
             }

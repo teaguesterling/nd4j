@@ -27,7 +27,7 @@ Perform a reduction
 @param extraParams extra parameters used for calculations
 @param result where to store the result of the reduction
  */
-__device__ void transform(int n, int xOffset,float *dx,int incx,float *extraParams,float *result,int i) {
+__device__ void transform(int n, int xOffset,float *dx,int incx,float *extraParams,float *result,int i2) {
 	extern __shared__ float sPartials[];
 	int tid = threadIdx.x;
 	int totalThreads = gridDim.x * blockDim.x;
@@ -66,7 +66,7 @@ __device__ void transform(int n, int xOffset,float *dx,int incx,float *extraPara
 	}
 
 	if (tid == 0) {
-		result[blockIdx.x] = postProcess(sPartials[0],n,xOffset,dx,incx,extraParams,result);
+		result[i2] = postProcess(sPartials[0],n,xOffset,dx,incx,extraParams,result);
 	}
 
 }

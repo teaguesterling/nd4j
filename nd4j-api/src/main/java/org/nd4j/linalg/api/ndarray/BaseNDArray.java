@@ -1059,6 +1059,10 @@ public abstract class BaseNDArray implements INDArray, Iterable {
 
         }
 
+        else if(ordering() == arr.ordering() && arr.elementWiseStride() > 0 && elementWiseStride() > 0) {
+           data().copyAtStride(arr.data(),arr.length(),elementWiseStride(),arr.elementWiseStride(),offset(),arr.offset());
+        }
+
         else if(Arrays.equals(this.shape(),arr.shape())) {
             Shape.iterate(this, new CoordinateFunction() {
                 @Override

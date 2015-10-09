@@ -176,7 +176,7 @@ public class KernelParamsWrapper implements AutoCloseable {
 
         }
 
-        context.syncOldStream();
+       // context.syncOldStream();
 
     }
 
@@ -193,7 +193,7 @@ public class KernelParamsWrapper implements AutoCloseable {
                 //sets the result for the buffer
                 //since this ends up being a scalar
                 if(cublasPointer.getBuffer().length() == 1) {
-                    setResultForOp((Accumulation) resultOp, cublasPointer);
+                    setResultForOp( resultOp, cublasPointer);
                 }
                 else
                     cublasPointer.copyToHost();
@@ -207,7 +207,7 @@ public class KernelParamsWrapper implements AutoCloseable {
         long[] total = new long[1];
         cuMemGetInfo(free, total);
         if(closeContext)
-            context.close();
+            context.destroy();
         closeInvoked = true;
     }
 
@@ -233,10 +233,7 @@ public class KernelParamsWrapper implements AutoCloseable {
      * Sync the streams
      */
     public void sync() {
-        if(context.getOldStream() != null)
-            context.syncOldStream();
-        if(context.getStream() != null)
-            context.syncStream();
+
     }
 
 
