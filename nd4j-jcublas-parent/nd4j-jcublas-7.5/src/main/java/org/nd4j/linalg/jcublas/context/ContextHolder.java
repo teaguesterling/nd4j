@@ -98,14 +98,15 @@ public class ContextHolder {
         try {
             getNumDevices();
             GenericObjectPoolConfig config = new GenericObjectPoolConfig();
-            config.setMaxIdle(10);
-            config.setMaxTotal(10ce'');
+            config.setMaxIdle(Runtime.getRuntime().availableProcessors());
+            config.setMaxTotal(Runtime.getRuntime().availableProcessors());
             handlePool = new CublasHandlePool(new CublasHandlePooledItemFactory(),config);
             GenericObjectPoolConfig confClone = config.clone();
             confClone.setMaxTotal(Runtime.getRuntime().availableProcessors() * 10000);
+            confClone.setMaxIdle(Runtime.getRuntime().availableProcessors() * 10000);
+            streamPool = new StreamPool(new StreamItemFactory(),confClone);
+            oldStreamPool = new OldStreamPool(new OldStreamItemFactory(),confClone);
 
-            streamPool = new StreamPool(new StreamItemFactory(),config);
-            oldStreamPool = new OldStreamPool(new OldStreamItemFactory(),config);
         }catch(Exception e) {
             log.warn("Unable to initialize cuda",e);
         }
