@@ -71,8 +71,11 @@ public class CudaContext implements AutoCloseable {
      */
     public void initStream() {
         if(stream == null) {
-            stream = new CUstream();
-            JCudaDriver.cuStreamCreate(stream, CUstream_flags.CU_STREAM_NON_BLOCKING);
+            try {
+                stream = ContextHolder.getInstance().getStreamPool().borrowObject();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
 
 
@@ -83,8 +86,11 @@ public class CudaContext implements AutoCloseable {
      */
     public void initOldStream() {
         if(oldStream == null)  {
-            oldStream = new cudaStream_t();
-            JCuda.cudaStreamCreate(oldStream);
+            try {
+                oldStream = ContextHolder.getInstance().getOldStreamPool().borrowObject();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
 
 
@@ -99,8 +105,11 @@ public class CudaContext implements AutoCloseable {
      */
     public void initHandle() {
         if(handle == null) {
-            handle = new cublasHandle();
-            JCublas2.cublasCreate(handle);
+            try {
+                handle = ContextHolder.getInstance().getHandlePool().borrowObject();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
             associateHandle();
         }
 
@@ -112,13 +121,28 @@ public class CudaContext implements AutoCloseable {
      */
     public void destroy() {
         if(handle != null) {
-            JCublas2.cublasDestroy(handle);
+            try {
+                ContextHolder.getInstance().getHandlePool().returnObject(handle);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            //JCublas2.cublasDestroy(handle);
         }
         if(stream != null) {
-            JCudaDriver.cuStreamDestroy(stream);
+            try {
+                ContextHolder.getInstance().getStreamPool().returnObject(stream);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            //  JCudaDriver.cuStreamDestroy(stream);
         }
         if(oldStream != null) {
-            JCuda.cudaStreamDestroy(oldStream);
+            try {
+                ContextHolder.getInstance().getOldStreamPool().returnObject(oldStream);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            //JCuda.cudaStreamDestroy(oldStream);
         }
     }
 
@@ -128,7 +152,6 @@ public class CudaContext implements AutoCloseable {
      * and destroys this context
      */
     public void finishBlasOperation() {
-        syncOldStream();
         destroy();
     }
 

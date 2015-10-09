@@ -127,13 +127,7 @@ public class DefaultOpExecutioner implements OpExecutioner {
                 }
 
             }
-       /*     else if(op.y() != null && Shape.opIsWithMatchingStrides(op)) {
-                int xStride = op.x().ordering() == 'f' ? op.x().stride(-1) : op.x().stride(0);
-                int yStride = op.y().ordering() == 'f' ? op.y().stride(-1) : op.y().stride(0);
-                for(int i = 0; i < op.n(); i++) {
-                    accumulation.update(op.op(op.x().getDouble(op.x().offset() + i * xStride), op.y().getDouble(op.y().offset() + i * yStride)));
-                }
-            }*/
+
             else if(Shape.opIsWholeBufferWithMatchingStrides(op)) {
                 for(int i = 0; i < op.n(); i++) {
                     accumulation.update(op.op(op.x().data().getDouble(i)));

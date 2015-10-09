@@ -23,6 +23,7 @@ package org.nd4j.linalg.jcublas.ops.executioner;
 import org.nd4j.linalg.api.blas.BlasBufferUtil;
 import org.nd4j.linalg.api.buffer.DataBuffer;
 import org.nd4j.linalg.api.complex.IComplexNDArray;
+import org.nd4j.linalg.api.complex.IComplexNumber;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ndarray.LinearViewNDArray;
 import org.nd4j.linalg.api.ops.Accumulation;
@@ -63,6 +64,36 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
     }
 
     @Override
+    public INDArray exec(Accumulation op, int... dimension) {
+   return super.exec(op,dimension);
+    }
+
+    @Override
+    public INDArray execAndReturn(TransformOp op, int... dimension) {
+        return super.execAndReturn(op, dimension);
+    }
+
+    @Override
+    protected INDArray execAndReturnVector(TransformOp op, int dimension) {
+        return super.execAndReturnVector(op, dimension);
+    }
+
+    @Override
+    public INDArray execAndReturn(ScalarOp op, int... dimension) {
+        return super.execAndReturn(op, dimension);
+    }
+
+    @Override
+    public Op exec(Op op, int... dimension) {
+        return super.exec(op, dimension);
+    }
+
+    @Override
+    protected Op exec(Op op, int dimension) {
+        return super.exec(op, dimension);
+    }
+
+    @Override
     public Op exec(Op op) {
         checkOp(op);
         //linear views and oblong offsets can't be handled by the gpu (due to the way the buffers are interpeted as vectors)
@@ -72,13 +103,13 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
 
         if (op instanceof TransformOp) {
             TransformOp t = (TransformOp) op;
-            invoke(t);
+            invoke(t,true);
         } else if (op instanceof Accumulation) {
             Accumulation acc = (Accumulation) op;
-            invoke(acc);
+            invoke(acc,true);
         } else if (op instanceof ScalarOp) {
             ScalarOp sc = (ScalarOp) op;
-            invoke(sc);
+            invoke(sc,true);
         }
         return op;
     }
@@ -93,7 +124,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
 
     @Override
     public INDArray execAndReturn(TransformOp op) {
-        invoke(op);
+        invoke(op,true);
         return op.z();
     }
 
@@ -122,8 +153,10 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
     }
 
 
-    private void invoke(Accumulation op)  {
+    private CudaContext invoke(Accumulation op,boolean sync)  {
         checkOp(op);
+        CudaContext ctx;
+
         if(!KernelFunctionLoader.getInstance().exists(op.name()) || executionMode() == ExecutionMode.JAVA || op.isPassThrough())
             super.exec(op);
 
@@ -155,15 +188,17 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                     result
             };
 
-            try(KernelParamsWrapper kParams = new KernelParamsWrapper(kernelParams).setResultOp(op, result)) {
-                invokeFunction(op, kParams.getContext(),kParams.getKernelParameters());
-                kParams.sync();
+            try(KernelParamsWrapper kParams = new KernelParamsWrapper(sync,kernelParams).setResultOp(op, result)) {
+                invokeFunction(op, kParams.getContext(), kParams.getKernelParameters());
+                ctx = kParams.getContext();
+                if(sync)
+                    kParams.sync();
                 kParams.close();
             } catch(Exception e) {
                 throw new RuntimeException("Could not execute kernel", e);
             }
 
-
+            return ctx;
 
 
         } else {
@@ -182,9 +217,11 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                     result
             };
 
-            try(KernelParamsWrapper kParams = new KernelParamsWrapper(kernelParams).setResultOp(op, result)) {
-                invokeFunction(op, kParams.getContext(),kParams.getKernelParameters());
-                kParams.sync();
+            try(KernelParamsWrapper kParams = new KernelParamsWrapper(sync,kernelParams).setResultOp(op, result)) {
+                invokeFunction(op, kParams.getContext(), kParams.getKernelParameters());
+                ctx = kParams.getContext();
+                if(sync)
+                    kParams.sync();
                 kParams.close();
             } catch(Exception e) {
                 throw new RuntimeException("Could not execute kernel", e);
@@ -193,36 +230,15 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
 
 
         }
+
+
+        return ctx;
     }
-
-
-    private void invokeFunction(Op op,CudaContext cudaContext, Object... kernelParams) {
-        /**
-         * Invoke a cuda kernel by name. This will be wrt the function name.
-         * Functions that are accumulations or transforms have names that end with _strided.
-         *
-         */
-        String functionName = op instanceof TransformOp || op instanceof Accumulation ? op.name() + "_strided" : op.name();
-        int blocks = PointerUtil.getNumBlocks(op.n(), KernelFunctions.BLOCKS, KernelFunctions.THREADS);
-        int threads = ContextHolder.getInstance().getNumThreads(op);
-
-
-        KernelFunctions.invoke(
-                blocks
-                ,threads
-                ,functionName
-                ,getType(op),cudaContext
-                ,kernelParams);
-
-    }
-
-
-
-
-
-
-    private void invoke(ScalarOp op) {
+    private CudaContext invoke(ScalarOp op,boolean sync) {
         checkOp(op);
+
+
+        CudaContext ctx = null;
         if(!KernelFunctionLoader.getInstance().exists(op.name())  || executionMode() == ExecutionMode.JAVA)
             super.exec(op);
 
@@ -249,8 +265,11 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                     op.z()
             };
 
-            try(KernelParamsWrapper kParams = new KernelParamsWrapper(kernelParams).setResultArray(op.z())) {
+            try(KernelParamsWrapper kParams = new KernelParamsWrapper(sync,kernelParams).setResultArray(op.z())) {
                 invokeFunction(op,kParams.getContext(), kParams.getKernelParameters());
+                ctx = kParams.getContext();
+                if(sync)
+                    kParams.sync();
             } catch(Exception e) {
                 throw new RuntimeException("Could not execute kernel", e);
             }
@@ -274,34 +293,34 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                     op.z()
             };
 
-            try(KernelParamsWrapper kParams = new KernelParamsWrapper(kernelParams).setResultArray(op.z())) {
-                invokeFunction(op, kParams.getContext(),kParams.getKernelParameters());
-                kParams.sync();
+            try(KernelParamsWrapper kParams = new KernelParamsWrapper(sync,kernelParams).setResultArray(op.z())) {
+                invokeFunction(op, kParams.getContext(), kParams.getKernelParameters());
+                ctx = kParams.getContext();
+                if(sync)
+                    kParams.sync();
                 kParams.close();
             }
 
             catch(Exception e) {
                 throw new RuntimeException("Could not execute kernel", e);
             }
-
-
-
-
         }
 
+
+        return ctx;
+
     }
 
 
-    private String getType(Op op) {
-        return op.x().data().dataType() == DataBuffer.Type.DOUBLE ? "double" : "float";
-    }
 
 
-    private void invoke(TransformOp op) {
+    private CudaContext invoke(TransformOp op,boolean sync) {
         if(!KernelFunctionLoader.getInstance().exists(op.name()) || op.x() instanceof IComplexNDArray || op.isPassThrough()) {
             super.exec(op);
-            return;
+            return null;
         }
+
+        CudaContext ctx;
         if (op.y() != null) {
             int xStride = BlasBufferUtil.getBlasStride(op.x());
             if(xStride < 0) {
@@ -336,9 +355,11 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                     BlasBufferUtil.getBlasStride(op.z())
             };
 
-            try(KernelParamsWrapper kParams = new KernelParamsWrapper(kernelParams).setResultArray(op.z())) {
-                invokeFunction(op, kParams.getContext(),kParams.getKernelParameters());
-                kParams.sync();
+            try(KernelParamsWrapper kParams = new KernelParamsWrapper(sync,kernelParams).setResultArray(op.z())) {
+                invokeFunction(op, kParams.getContext(), kParams.getKernelParameters());
+                ctx = kParams.getContext();
+                if(sync)
+                    kParams.sync();
 
             } catch(Exception e) {
                 throw new RuntimeException("Could not execute kernel", e);
@@ -356,15 +377,51 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                     op.z()
             };
 
-            try(KernelParamsWrapper kParams = new KernelParamsWrapper(kernelParams).setResultArray(op.z())) {
-                invokeFunction(op, kParams.getContext(),kParams.getKernelParameters());
-                kParams.sync();
+            try(KernelParamsWrapper kParams = new KernelParamsWrapper(sync,kernelParams).setResultArray(op.z())) {
+                invokeFunction(op, kParams.getContext(), kParams.getKernelParameters());
+                ctx = kParams.getContext();
+                if(sync)
+                    kParams.sync();
             } catch(Exception e) {
                 throw new RuntimeException("Could not execute kernel", e);
             }
         }
 
+
+        return ctx;
     }
+
+
+    private void invokeFunction(Op op,CudaContext cudaContext, Object... kernelParams) {
+        /**
+         * Invoke a cuda kernel by name. This will be wrt the function name.
+         * Functions that are accumulations or transforms have names that end with _strided.
+         *
+         */
+        String functionName = op instanceof TransformOp || op instanceof Accumulation ? op.name() + "_strided" : op.name();
+        int blocks = PointerUtil.getNumBlocks(op.n(), KernelFunctions.BLOCKS, KernelFunctions.THREADS);
+        int threads = ContextHolder.getInstance().getNumThreads(op);
+
+
+        KernelFunctions.invoke(
+                blocks
+                ,threads
+                ,functionName
+                ,getType(op),cudaContext
+                ,kernelParams);
+
+    }
+
+
+
+
+
+
+
+    private String getType(Op op) {
+        return op.x().data().dataType() == DataBuffer.Type.DOUBLE ? "double" : "float";
+    }
+
 }
 
 

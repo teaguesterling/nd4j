@@ -57,6 +57,8 @@ public class KernelParamsWrapper implements AutoCloseable {
 
     private boolean closeInvoked = false;
 
+    private boolean closeContext;
+
     private CudaContext context;
 
     /**
@@ -122,7 +124,6 @@ public class KernelParamsWrapper implements AutoCloseable {
         setResultArray(result);
         return this;
     }
-
     /**
      * Create a new wrapper for the kernel parameters.
      *
@@ -133,6 +134,18 @@ public class KernelParamsWrapper implements AutoCloseable {
      * @param kernelParams
      */
     public KernelParamsWrapper(Object... kernelParams) {
+        this(false,kernelParams);
+    }
+    /**
+     * Create a new wrapper for the kernel parameters.
+     *
+     * This wrapper manages the host - and device communication and.
+     *
+     * To set the result on a specific operation, use setResultOp()
+     * To set the array which is the result INDArray, use setResultArray()
+     * @param kernelParams
+     */
+    public KernelParamsWrapper(boolean closeContext,Object... kernelParams) {
         kernelParameters = new Object[kernelParams.length];
         arrayToPointer = ArrayListMultimap.create();
         pointersToFree = new ArrayList<>();
@@ -140,6 +153,7 @@ public class KernelParamsWrapper implements AutoCloseable {
         context = new CudaContext();
         context.initOldStream();
         context.initStream();
+        this.closeContext = closeContext;
         for(int i = 0; i < kernelParams.length; i++) {
             Object arg = kernelParams[i];
 
@@ -190,8 +204,8 @@ public class KernelParamsWrapper implements AutoCloseable {
         long[] free = new long[1];
         long[] total = new long[1];
         cuMemGetInfo(free, total);
-
-        context.close();
+        if(closeContext)
+            context.close();
         closeInvoked = true;
     }
 
