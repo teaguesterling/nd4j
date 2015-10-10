@@ -11,17 +11,17 @@ import org.slf4j.LoggerFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Created by agibsonccc on 10/8/15.
+ * Creates old streams
+ *
+ * @author Adam Gibson
  */
 public class OldStreamItemFactory extends BasePooledObjectFactory<cudaStream_t> {
-    private static Logger log = LoggerFactory.getLogger(StreamItemFactory.class);
-    private AtomicInteger create = new AtomicInteger(0);
+
 
     @Override
     public cudaStream_t create() throws Exception {
         cudaStream_t  oldStream = new cudaStream_t();
         JCuda.cudaStreamCreate(oldStream);
-       System.out.println("Created old stream " + create.getAndIncrement());
         return oldStream;
     }
 

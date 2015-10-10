@@ -1016,7 +1016,6 @@ public class KernelLauncher {
             }
         }
 
-
         cuLaunchKernel(function,
                 gridSize.x, gridSize.y, gridSize.z,
                 blockSize.x, blockSize.y, blockSize.z,

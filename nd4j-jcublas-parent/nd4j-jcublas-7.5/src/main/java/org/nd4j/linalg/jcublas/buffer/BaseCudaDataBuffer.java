@@ -477,8 +477,6 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
 
 
     private void copyOneElement(int i,double val) {
-        CudaContext ctx = new CudaContext();
-        ctx.initOldStream();
         if(pointersToContexts != null)
             for(DevicePointerInfo info : pointersToContexts.values()) {
                 if(dataType() == Type.FLOAT)
@@ -487,8 +485,7 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
                     JCublas2.cublasSetVector(1,getElementSize(),Pointer.to(new double[]{val}),1,info.getPointer().withByteOffset(getElementSize() * i),1);
 
             }
-        ctx.syncOldStream();
-        ctx.destroy();
+
     }
 
 
