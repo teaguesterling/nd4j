@@ -31,11 +31,11 @@ import org.nd4j.linalg.api.ops.ScalarOp;
 import org.nd4j.linalg.api.ops.TransformOp;
 import org.nd4j.linalg.api.ops.executioner.DefaultOpExecutioner;
 import org.nd4j.linalg.factory.Nd4j;
-import org.nd4j.linalg.jcublas.CublasPointer;
 import org.nd4j.linalg.jcublas.SimpleJCublas;
 import org.nd4j.linalg.jcublas.buffer.JCudaBuffer;
 import org.nd4j.linalg.jcublas.context.ContextHolder;
 import org.nd4j.linalg.jcublas.context.CudaContext;
+import org.nd4j.linalg.jcublas.gpumetrics.GpuMetrics;
 import org.nd4j.linalg.jcublas.kernel.KernelFunctionLoader;
 import org.nd4j.linalg.jcublas.kernel.KernelFunctions;
 import org.nd4j.linalg.jcublas.util.KernelParamsWrapper;
@@ -143,10 +143,12 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                 //note here that we are only returning objects to the pool here we aren't actually
                 //getting rid of the contexts, this just makes synchronization easier.
                 //This also prevents blocking with the object pools.
-                ctx.destroy();
+                //ctx.destroy();
 
             }
 
+            for(CudaContext ctx : contexts)
+                ctx.destroy();
 
             return retArray;
         }
@@ -247,6 +249,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             super.exec(op);
 
 
+        GpuMetrics metrics = GpuMetrics.blockAndThreads(getType(op),op.n());
 
         if (op.y() != null) {
             int xStride = BlasBufferUtil.getBlasStride(op.x());
@@ -268,11 +271,11 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                     BlasBufferUtil.getBlasStride(op.x()),
                     BlasBufferUtil.getBlasStride(op.y()),
                     toArgs(op.extraArgs(), getType(op)),
-                    result,i
+                    result,i,metrics.getBlockSize()
             };
 
-            try(KernelParamsWrapper kParams = new KernelParamsWrapper(sync,kernelParams).setResultOp(op, result)) {
-                invokeFunction(op, kParams.getContext(), kParams.getKernelParameters());
+            try(KernelParamsWrapper kParams = new KernelParamsWrapper(op,sync,kernelParams).setResultOp(op, result)) {
+                invokeFunction(op, metrics,kParams.getContext(), kParams.getKernelParameters());
                 ctx = kParams.getContext();
                 if(sync)
                     kParams.sync();
@@ -285,7 +288,6 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
 
 
         } else {
-            //int n, int xOffset,double *dx,int incx,double result
             int xStride = BlasBufferUtil.getBlasStride(op.x());
             if(xStride < 0) {
                 op.setX(op.x().dup());
@@ -297,11 +299,11 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                     op.x(),
                     BlasBufferUtil.getBlasStride(op.x()),
                     toArgs(op.extraArgs(), getType(op)),
-                    result,i
+                    result,i,metrics.getBlockSize()
             };
 
-            try(KernelParamsWrapper kParams = new KernelParamsWrapper(sync,kernelParams).setResultOp(op, result)) {
-                invokeFunction(op, kParams.getContext(), kParams.getKernelParameters());
+            try(KernelParamsWrapper kParams = new KernelParamsWrapper(op,sync,kernelParams).setResultOp(op, result)) {
+                invokeFunction(op, metrics,kParams.getContext(), kParams.getKernelParameters());
                 ctx = kParams.getContext();
                 if(sync)
                     kParams.sync();
@@ -318,6 +320,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
     }
     private CudaContext invoke(ScalarOp op,boolean sync) {
         checkOp(op);
+        GpuMetrics metrics = GpuMetrics.blockAndThreads(getType(op),op.n());
 
 
         CudaContext ctx = null;
@@ -344,11 +347,11 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                     BlasBufferUtil.getBlasStride(op.x()),
                     BlasBufferUtil.getBlasStride(op.y()),
                     toArgs(op.extraArgs(), getType(op)),
-                    op.z()
+                    op.z(),metrics.getBlockSize()
             };
 
-            try(KernelParamsWrapper kParams = new KernelParamsWrapper(sync,kernelParams).setResultArray(op.z())) {
-                invokeFunction(op,kParams.getContext(), kParams.getKernelParameters());
+            try(KernelParamsWrapper kParams = new KernelParamsWrapper(op,sync,kernelParams).setResultArray(op.z())) {
+                invokeFunction(op,metrics,kParams.getContext(), kParams.getKernelParameters());
                 ctx = kParams.getContext();
                 if(sync)
                     kParams.sync();
@@ -372,11 +375,11 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                     op.x(),
                     BlasBufferUtil.getBlasStride(op.x()),
                     toArgs(op.extraArgs(), getType(op)),
-                    op.z()
+                    op.z(),metrics.getBlockSize()
             };
 
-            try(KernelParamsWrapper kParams = new KernelParamsWrapper(sync,kernelParams).setResultArray(op.z())) {
-                invokeFunction(op, kParams.getContext(), kParams.getKernelParameters());
+            try(KernelParamsWrapper kParams = new KernelParamsWrapper(op,sync,kernelParams).setResultArray(op.z())) {
+                invokeFunction(op, metrics,kParams.getContext(), kParams.getKernelParameters());
                 ctx = kParams.getContext();
                 if(sync)
                     kParams.sync();
@@ -401,6 +404,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             super.exec(op);
             return null;
         }
+        GpuMetrics metrics = GpuMetrics.blockAndThreads(getType(op),op.n());
 
         CudaContext ctx;
         if (op.y() != null) {
@@ -435,10 +439,11 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                     toArgs(op.extraArgs(), getType(op)),
                     op.z(),
                     BlasBufferUtil.getBlasStride(op.z())
+                    ,metrics.getBlockSize()
             };
 
-            try(KernelParamsWrapper kParams = new KernelParamsWrapper(sync,kernelParams).setResultArray(op.z())) {
-                invokeFunction(op, kParams.getContext(), kParams.getKernelParameters());
+            try(KernelParamsWrapper kParams = new KernelParamsWrapper(op,sync,kernelParams).setResultArray(op.z())) {
+                invokeFunction(op, metrics,kParams.getContext(), kParams.getKernelParameters());
                 ctx = kParams.getContext();
                 if(sync)
                     kParams.sync();
@@ -455,11 +460,11 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                     op.x(),
                     BlasBufferUtil.getBlasStride(op.x()),
                     toArgs(op.extraArgs(), getType(op)),
-                    op.z()
+                    op.z(),metrics.getBlockSize()
             };
 
-            try(KernelParamsWrapper kParams = new KernelParamsWrapper(sync,kernelParams).setResultArray(op.z())) {
-                invokeFunction(op, kParams.getContext(), kParams.getKernelParameters());
+            try(KernelParamsWrapper kParams = new KernelParamsWrapper(op,sync,kernelParams).setResultArray(op.z())) {
+                invokeFunction(op, metrics,kParams.getContext(), kParams.getKernelParameters());
                 ctx = kParams.getContext();
                 if(sync)
                     kParams.sync();
@@ -473,20 +478,16 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
     }
 
 
-    private void invokeFunction(Op op,CudaContext cudaContext, Object... kernelParams) {
+    private void invokeFunction(Op op,GpuMetrics metrics,CudaContext cudaContext, Object... kernelParams) {
         /**
          * Invoke a cuda kernel by name. This will be wrt the function name.
          * Functions that are accumulations or transforms have names that end with _strided.
          *
          */
         String functionName = op instanceof TransformOp || op instanceof Accumulation ? op.name() + "_strided" : op.name();
-        int blocks = PointerUtil.getNumBlocks(op.n(), KernelFunctions.BLOCKS, KernelFunctions.THREADS);
-        int threads = ContextHolder.getInstance().getNumThreads(op);
-
-
+        //force blocks and threads to be even
         KernelFunctions.invoke(
-                blocks
-                ,threads
+                metrics
                 ,functionName
                 ,getType(op),cudaContext
                 ,kernelParams);

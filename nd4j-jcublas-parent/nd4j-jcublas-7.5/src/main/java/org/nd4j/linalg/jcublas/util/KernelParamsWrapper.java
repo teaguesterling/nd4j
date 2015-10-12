@@ -38,6 +38,7 @@ import org.nd4j.linalg.jcublas.buffer.JCudaBuffer;
 import org.nd4j.linalg.jcublas.complex.ComplexDouble;
 import org.nd4j.linalg.jcublas.context.ContextHolder;
 import org.nd4j.linalg.jcublas.context.CudaContext;
+import org.nd4j.linalg.jcublas.gpumetrics.GpuMetrics;
 import org.nd4j.linalg.jcublas.kernel.KernelFunctions;
 
 import java.util.ArrayList;
@@ -133,8 +134,8 @@ public class KernelParamsWrapper implements AutoCloseable {
      * To set the array which is the result INDArray, use setResultArray()
      * @param kernelParams
      */
-    public KernelParamsWrapper(Object... kernelParams) {
-        this(false, kernelParams);
+    public KernelParamsWrapper(Op op,Object... kernelParams) {
+        this(op,false, kernelParams);
     }
     /**
      * Create a new wrapper for the kernel parameters.
@@ -145,7 +146,7 @@ public class KernelParamsWrapper implements AutoCloseable {
      * To set the array which is the result INDArray, use setResultArray()
      * @param kernelParams
      */
-    public KernelParamsWrapper(boolean closeContext,Object... kernelParams) {
+    public KernelParamsWrapper(Op op,boolean closeContext,Object... kernelParams) {
         kernelParameters = new Object[kernelParams.length];
         arrayToPointer = ArrayListMultimap.create();
         pointersToFree = new ArrayList<>();
@@ -154,6 +155,8 @@ public class KernelParamsWrapper implements AutoCloseable {
         context.initOldStream();
         context.initStream();
         this.closeContext = closeContext;
+        GpuMetrics metrics = GpuMetrics.blockAndThreads( getType(op), op.n());
+
         for(int i = 0; i < kernelParams.length; i++) {
             Object arg = kernelParams[i];
 
@@ -178,6 +181,9 @@ public class KernelParamsWrapper implements AutoCloseable {
 
        // context.syncOldStream();
 
+    }
+    private String getType(Op op) {
+        return op.x().data().dataType() == DataBuffer.Type.DOUBLE ? "double" : "float";
     }
 
     /**

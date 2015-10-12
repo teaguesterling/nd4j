@@ -26,7 +26,7 @@ Perform a reduction
 @param extraParams extra parameters used for calculations
 @param result where to store the result of the reduction
 */
-__device__ void transform_pair(int n, int xOffset,int yOffset,float *dx,float *dy,int incx,int incy,float *extraParams,float *result,int i) {
+__device__ void transform_pair(int n, int xOffset,int yOffset,float *dx,float *dy,int incx,int incy,float *extraParams,float *result,int i,int blockSize) {
         extern __shared__ float sPartials[];
         const int tid = threadIdx.x;
         int totalThreads = gridDim.x * blockDim.x;
@@ -81,7 +81,7 @@ Perform a reduction
 @param extraParams extra parameters used for calculations
 @param result where to store the result of the reduction
 */
-__device__ void transform(int n, int xOffset,float *dx,int incx,float *extraParams,float *result,int i2) {
+__device__ void transform(int n, int xOffset,float *dx,int incx,float *extraParams,float *result,int i2,int blockSize) {
         extern __shared__ float sPartials[];
         const int tid = threadIdx.x;
         int totalThreads = gridDim.x * blockDim.x;

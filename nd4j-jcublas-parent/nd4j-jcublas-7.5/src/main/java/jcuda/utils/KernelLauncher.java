@@ -1026,6 +1026,9 @@ public class KernelLauncher {
 
     }
 
+    public CUfunction getFunction() {
+        return function;
+    }
 
     /**
      * The extension of the given file name is replaced with "ptx".

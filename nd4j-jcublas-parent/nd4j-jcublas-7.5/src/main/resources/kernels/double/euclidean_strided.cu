@@ -25,8 +25,8 @@ __device__ double postProcess(double reduction,int n,int xOffset,double *dx,int 
 }
 
 extern "C"
-__global__ void euclidean_strided_double(int n, int xOffset,int yOffset,double *dx,double *dy,int incx,int incy,double *extraParams,double *result,int i) {
-              transform_pair(n,xOffset,yOffset,dx,dy,incx,incy,extraParams,result,i);
+__global__ void euclidean_strided_double(int n, int xOffset,int yOffset,double *dx,double *dy,int incx,int incy,double *extraParams,double *result,int i,int blockSize) {
+              transform_pair(n,xOffset,yOffset,dx,dy,incx,incy,extraParams,result,i,blockSize);
 
  }
 

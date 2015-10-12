@@ -99,6 +99,7 @@ public class ContextHolder {
             getNumDevices();
             GenericObjectPoolConfig config = new GenericObjectPoolConfig();
             config.setJmxEnabled(true);
+            config.setBlockWhenExhausted(false);
             config.setMaxIdle(Runtime.getRuntime().availableProcessors());
             config.setMaxTotal(Runtime.getRuntime().availableProcessors());
             config.setMinIdle(Runtime.getRuntime().availableProcessors());
@@ -114,6 +115,11 @@ public class ContextHolder {
             GenericObjectPoolConfig oldStreamConf = streamConf.clone();
             oldStreamConf.setJmxNameBase("oldstream");
             oldStreamPool = new OldStreamPool(new OldStreamItemFactory(),oldStreamConf);
+           //seed with multiple streams to encourage parallelism
+            for(int i = 0; i < Runtime.getRuntime().availableProcessors(); i++) {
+                streamPool.addObject();
+                oldStreamPool.addObject();
+            }
 
         }catch(Exception e) {
             log.warn("Unable to initialize cuda",e);
@@ -174,8 +180,10 @@ public class ContextHolder {
     public int getNumThreads(Op op) {
         String functionName = op instanceof TransformOp || op instanceof Accumulation ? op.name() + "_strided" : op.name();
         Integer threadsForFunction = ContextHolder.getInstance().getThreads().get(functionName);
+        int maxThreads = ContextHolder.getInstance().getInfoFor(ContextHolder.getInstance().getDeviceForThread()).getMaxThreadsPerBlock();
+
         if(threadsForFunction == null)
-            return PointerUtil.getNumThreads(op.n(), KernelFunctions.THREADS);
+            return PointerUtil.getNumThreads(op.n(), maxThreads);
         return threadsForFunction;
 
     }
