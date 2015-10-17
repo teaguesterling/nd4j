@@ -423,8 +423,18 @@ public class KernelLauncher {
     public static KernelLauncher load(
             String moduleFileName, String functionName) {
         KernelLauncher kernelLauncher = new KernelLauncher();
-        byte moduleData[] = loadData(moduleFileName);
-        kernelLauncher.initModule(moduleData);
+        JITOptions jitOptions = new JITOptions();
+        CUlinkState state = new CUlinkState();
+        cuLinkCreate(jitOptions, state);
+        boolean worked = false;
+        JCudaDriver.cuLinkAddFile(state, CUjitInputType.CU_JIT_INPUT_LIBRARY, "/usr/local/cuda-7.5/lib64/libcudadevrt.a", jitOptions);
+        cuLinkAddFile(state, CUjitInputType.CU_JIT_INPUT_CUBIN, moduleFileName, jitOptions);
+
+        long sz[] = new long[60000];
+        Pointer image = new Pointer();
+        cuLinkComplete(state, image, sz);
+        cuLinkDestroy(state);
+         kernelLauncher.initModule(image);
         kernelLauncher.initFunction(functionName);
         return kernelLauncher;
     }
@@ -638,6 +648,18 @@ public class KernelLauncher {
         return kernelLauncher;
     }
 
+    /**
+     * Initialize the module for this KernelLauncher by loading
+     * the PTX- or CUBIN file with the given name.
+     *
+     * @param moduleData The data from the PTX- or CUBIN file
+     */
+    private void initModule(Pointer moduleData)
+    {
+        module = new CUmodule();
+        cuModuleLoadDataEx(module,moduleData,
+                0, new int[0], Pointer.to(new int[0]));
+    }
 
     /**
      * Initialize the module for this KernelLauncher by loading

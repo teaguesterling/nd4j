@@ -155,7 +155,6 @@ public class KernelParamsWrapper implements AutoCloseable {
         context.initOldStream();
         context.initStream();
         this.closeContext = closeContext;
-        GpuMetrics metrics = GpuMetrics.blockAndThreads( getType(op), op.n());
 
         for(int i = 0; i < kernelParams.length; i++) {
             Object arg = kernelParams[i];
@@ -179,11 +178,7 @@ public class KernelParamsWrapper implements AutoCloseable {
 
         }
 
-       // context.syncOldStream();
 
-    }
-    private String getType(Op op) {
-        return op.x().data().dataType() == DataBuffer.Type.DOUBLE ? "double" : "float";
     }
 
     /**
@@ -198,20 +193,21 @@ public class KernelParamsWrapper implements AutoCloseable {
             if(resultPointers.contains(cublasPointer)) {
                 //sets the result for the buffer
                 //since this ends up being a scalar
-                if(cublasPointer.getBuffer().length() == 1) {
-                    setResultForOp( resultOp, cublasPointer);
+                if(closeContext) {
+                    if(cublasPointer.getBuffer().length() == 1) {
+                        setResultForOp( resultOp, cublasPointer);
+                    }
+                    else
+                        cublasPointer.copyToHost();
+                    cublasPointer.close();
                 }
                 else
-                    cublasPointer.copyToHost();
-
+                    context.setResultPointer(cublasPointer);
             }
-            cublasPointer.close();
+
         }
 
 
-        long[] free = new long[1];
-        long[] total = new long[1];
-        cuMemGetInfo(free, total);
         if(closeContext)
             context.destroy();
         closeInvoked = true;
@@ -239,7 +235,7 @@ public class KernelParamsWrapper implements AutoCloseable {
      * Sync the streams
      */
     public void sync() {
-
+        context.syncStream();
     }
 
 

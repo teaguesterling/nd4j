@@ -20,14 +20,11 @@
 package org.nd4j.linalg.jcublas.kernel;
 
 
-import jcuda.Sizeof;
-import jcuda.driver.CUstream;
-import jcuda.runtime.dim3;
+
 import jcuda.utils.KernelLauncher;
 import org.nd4j.linalg.jcublas.buffer.CudaDoubleDataBuffer;
 import org.nd4j.linalg.jcublas.buffer.CudaFloatDataBuffer;
 import org.nd4j.linalg.jcublas.buffer.JCudaBuffer;
-import org.nd4j.linalg.jcublas.context.ContextHolder;
 import org.nd4j.linalg.jcublas.context.CudaContext;
 import org.nd4j.linalg.jcublas.gpumetrics.GpuMetrics;
 import org.springframework.core.io.ClassPathResource;
@@ -105,7 +102,7 @@ public class KernelFunctions {
      * @param cudaContext
      * @param kernelParameters
      */
-    public static  void invoke(GpuMetrics metrics, String functionName,String dataType,CudaContext cudaContext,Object...kernelParameters) {
+    public static  void invoke(GpuMetrics metrics, boolean sync,String functionName,String dataType,CudaContext cudaContext,Object...kernelParameters) {
         // Call the kernel function.
         int sharedMemSize = metrics.getSharedMemory();
         KernelLauncher launcher = KernelFunctionLoader.launcher(functionName, dataType);
@@ -117,7 +114,8 @@ public class KernelFunctions {
                 .setGridSize(metrics.getGridSize(),1,1).setStream(cudaContext.getStream())
                 .setSharedMemSize(sharedMemSize)
                 .call(kernelParameters);
-        cudaContext.syncStream();
+        if(sync)
+            cudaContext.syncStream();
 
     }
 

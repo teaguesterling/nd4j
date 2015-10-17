@@ -22,18 +22,18 @@ package org.nd4j.linalg.jcublas.kernel;
 
 import jcuda.utils.KernelLauncher;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.nd4j.linalg.api.buffer.DataBuffer;
+import org.reflections.Reflections;
+import org.reflections.scanners.ResourcesScanner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
 
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
+import java.io.*;
+import java.nio.charset.Charset;
+import java.util.*;
+import java.util.regex.Pattern;
 
 
 /**
@@ -161,10 +161,7 @@ public class KernelFunctionLoader {
         props.load(res.getInputStream());
         log.info("Registering cuda functions...");
         //ensure imports for each file before compiling
-        ensureImports(props, "float");
-        ensureImports(props, "double");
         compileAndLoad(props, FLOAT, "float");
-        compileAndLoad(props, DOUBLE, "double");
 
         init = true;
     }
@@ -242,55 +239,57 @@ public class KernelFunctionLoader {
                 .toString();
         String kernelPath = dir.append(tmpDir)
                 .append(File.separator)
-                .append("kernels")
-                .append(File.separator).append(dataType).append(File.separator)
+                .append("nd4j-kernels")
+                .append(File.separator)
                 .toString();
-        boolean shouldCompile = cache;
+        boolean shouldCompile = true;
         if(cache) {
-            File tmpDir2 = new File(tmpDir + File.separator + "kernels");
+            File tmpDir2 = new File(tmpDir + File.separator + "nd4j-kernels");
             if(tmpDir2.exists()) {
                 shouldCompile = cache && !tmpDir2.exists() || compiledAttempts > 0;
             }
         }
+
         String[] split = f.split(",");
 
         if(shouldCompile) {
-            sb.append(" ").append(" -ptx ");
-            log.info("Loading " + dataType + " cuda functions");
-            if (f != null) {
-                for (String s : split) {
-                    String loaded = extract("/kernels/" + dataType + "/" + s + ".cu", dataType.equals("float") ? DataBuffer.Type.FLOAT : DataBuffer.Type.DOUBLE);
-                    sb.append(" " + loaded);
-                }
-
-                sb.append(" --output-directory " + kernelPath);
-
-
-                Process process = Runtime.getRuntime().exec(sb.toString());
-
-                String errorMessage =
-                        new String(IOUtils.toByteArray(process.getErrorStream()));
-                String outputMessage =
-                        new String(IOUtils.toByteArray(process.getInputStream()));
-                int exitValue = 0;
-                try {
-                    exitValue = process.waitFor();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IOException(
-                            "Interrupted while waiting for nvcc output", e);
-                }
-
-                if (exitValue != 0) {
-                    log.info("nvcc process exitValue " + exitValue);
-                    log.info("errorMessage:\n" + errorMessage);
-                    log.info("outputMessage:\n" + outputMessage);
-                    throw new IOException(
-                            "Could not create .ptx file: " + errorMessage);
-                }
-
+            Set<String> resources = new Reflections("org.nd4j.nd4j-kernels", new ResourcesScanner()).getResources(Pattern.compile(".*"));
+            for(String resource : resources) {
+                extract(resource);
+                System.out.println(resource);
             }
 
+            File outputDir = new File(System.getProperty("java.io.tmpdir") + File.separator + "nd4j-kernels","output");
+            outputDir.mkdirs();
+            String[] commands = {"bash","-c","make && /usr/bin/make install"};
+            ProcessBuilder probuilder = new ProcessBuilder(commands);
+            //You can set up your work directory
+            probuilder.directory(new File("/tmp/nd4j-kernels"));
+
+            Process process = probuilder.start();
+            //Read out dir output
+            InputStream is = process.getInputStream();
+            InputStreamReader isr = new InputStreamReader(is);
+            BufferedReader br = new BufferedReader(isr);
+            String line;
+            System.out.printf("Output of running %s is:\n",
+                    Arrays.toString(commands));
+            while ((line = br.readLine()) != null) {
+                System.out.println(line);
+            }
+
+            try {
+                int tid = process.waitFor();
+                BufferedInputStream bis = new BufferedInputStream(is);
+                List<String> list = IOUtils.readLines(bis, "UTF-8");
+                for(String item : list) {
+                    System.out.println(item);
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            System.out.println("After resource");
 
 
         }
@@ -310,13 +309,14 @@ public class KernelFunctionLoader {
         try {
             for (String module : split) {
                 log.info("Loading " + module);
-                String path = kernelPath + module + ".ptx";
+                String path = kernelPath + "output" + File.separator+  module + ".cubin";
                 String name = module + "_" + dataType;
                 paths.put(name,path);
                 KernelLauncher launch = KernelLauncher.load(path, name);
                 launchers.put(name, launch);
             }
         }catch (Exception e) {
+            e.printStackTrace();
             if(!shouldCompile && compiledAttempts < 3) {
                 log.warn("Error loading modules...attempting recompile");
                 props.setProperty(CACHE_COMPILED,String.valueOf(true));
@@ -335,46 +335,36 @@ public class KernelFunctionLoader {
      * absolute path
      *
      * @param file     the file
-     * @param dataType the data type to extract for
-     * @return
+
      * @throws IOException
      */
-    public String extract(String file, DataBuffer.Type dataType) throws IOException {
-
-        String path = dataFolder(dataType);
+    public String extract(String file) throws IOException {
         String tmpDir = System.getProperty("java.io.tmpdir");
-        File dataDir = new File(tmpDir, path);
-        if (!dataDir.exists())
+        String[] split = file.split("/");
+        //minus the first 2 and the last entry for the parent directory path
+        String[] newArray = new String[split.length - 2];
+        for(int i = 0,j = 2; j < split.length; i++,j++) {
+            newArray[i] = split[j];
+        }
+
+        String split2 = StringUtils.join(newArray,"/");
+        File dataDir = new File(tmpDir,split2);
+        if (!dataDir.getParentFile().exists())
             dataDir.mkdirs();
 
 
-        return loadFile(file);
-
-    }
-
-    private void ensureImports(Properties props, String dataType) throws IOException {
-        if (dataType.equals("float")) {
-            String[] imports = props.getProperty(IMPORTS_FLOAT).split(",");
-            for (String import1 : imports) {
-                loadFile("/kernels/" + dataType + "/" + import1);
-            }
-        } else {
-            String[] imports = props.getProperty(IMPORTS_DOUBLE).split(",");
-            for (String import1 : imports) {
-                loadFile("/kernels/" + dataType + "/" + import1);
-            }
-        }
+        return loadFile(file,dataDir);
 
     }
 
 
-    private String loadFile(String file) throws IOException {
+
+    private String loadFile(String file,File dataDir) throws IOException {
         ClassPathResource resource = new ClassPathResource(file, KernelFunctionLoader.class.getClassLoader());
-        String tmpDir = System.getProperty("java.io.tmpdir");
 
         if (!resource.exists())
             throw new IllegalStateException("Unable to find file " + resource);
-        File out = new File(tmpDir, file);
+        File out = dataDir;
         if (!out.getParentFile().exists())
             out.getParentFile().mkdirs();
         if (out.exists())

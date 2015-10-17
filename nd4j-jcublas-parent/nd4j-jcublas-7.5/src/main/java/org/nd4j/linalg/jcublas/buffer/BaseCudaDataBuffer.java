@@ -590,7 +590,7 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
             ContextHolder.getInstance().getMemoryStrategy().free(this,offset,length);
             freed.set(true);
             copied.remove(name);
-            pointersToContexts.remove(name,offset);
+            pointersToContexts.remove(name,Triple.of(offset,length,devicePointerInfo.getStride()));
             return true;
 
 
@@ -655,7 +655,7 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
     }
 
     @Override
-    public void copyToHost(int offset,int length) {
+    public synchronized  void copyToHost(int offset,int length) {
         DevicePointerInfo devicePointerInfo = pointersToContexts.get(Thread.currentThread().getName(),Triple.of(offset,length,1));
         if(devicePointerInfo == null)
             throw new IllegalStateException("No pointer found for offset " + offset);
@@ -703,8 +703,7 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
 
         }
 
-        else
-            throw new IllegalStateException("No offset found to copy");
+
 
     }
 

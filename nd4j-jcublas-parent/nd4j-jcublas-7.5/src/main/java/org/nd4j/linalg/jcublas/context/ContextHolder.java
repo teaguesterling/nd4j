@@ -275,6 +275,32 @@ public class ContextHolder {
         this.numDevices = numDevices;
     }
 
+
+    /**
+     * Returns the gpu diagnostics
+     * for the current thread
+     * @return
+     */
+    public GpuInformation getCurrentGpuInformation() {
+        return getGpuInfo(getDeviceForThread());
+    }
+
+    /**
+     * Returns the gpu diagnostics
+     * for the given device
+     * @param device the device to get
+     *               the gpu diagnostics for
+     * @return
+     */
+    public GpuInformation getGpuInfo(int device) {
+        return info.get(device);
+    }
+
+
+    public Map<Integer, GpuInformation> getInfo() {
+        return info;
+    }
+
     /**
      * Get the configuration the given device
      * @param device the device to get the configuration for

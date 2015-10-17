@@ -31,9 +31,9 @@ import org.nd4j.linalg.api.ops.ScalarOp;
 import org.nd4j.linalg.api.ops.TransformOp;
 import org.nd4j.linalg.api.ops.executioner.DefaultOpExecutioner;
 import org.nd4j.linalg.factory.Nd4j;
+import org.nd4j.linalg.jcublas.CublasPointer;
 import org.nd4j.linalg.jcublas.SimpleJCublas;
 import org.nd4j.linalg.jcublas.buffer.JCudaBuffer;
-import org.nd4j.linalg.jcublas.context.ContextHolder;
 import org.nd4j.linalg.jcublas.context.CudaContext;
 import org.nd4j.linalg.jcublas.gpumetrics.GpuMetrics;
 import org.nd4j.linalg.jcublas.kernel.KernelFunctionLoader;
@@ -147,8 +147,16 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
 
             }
 
+            CublasPointer pointer = contexts.get(0).getResultPointer();
+
             for(CudaContext ctx : contexts)
-                ctx.destroy();
+                ctx.destroy(pointer,false);
+            pointer.copyToHost();
+            try {
+                pointer.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
 
             return retArray;
         }
@@ -249,7 +257,8 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             super.exec(op);
 
 
-        GpuMetrics metrics = GpuMetrics.blockAndThreads(getType(op),op.n());
+        String functionName = op instanceof TransformOp || op instanceof Accumulation ? op.name() + "_strided" : op.name();
+        GpuMetrics metrics = GpuMetrics.blocksAndThreadsOccupancy(functionName,getType(op),op.n());
 
         if (op.y() != null) {
             int xStride = BlasBufferUtil.getBlasStride(op.x());
@@ -275,11 +284,11 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             };
 
             try(KernelParamsWrapper kParams = new KernelParamsWrapper(op,sync,kernelParams).setResultOp(op, result)) {
-                invokeFunction(op, metrics,kParams.getContext(), kParams.getKernelParameters());
+                invokeFunction(op, sync,metrics,kParams.getContext(), kParams.getKernelParameters());
                 ctx = kParams.getContext();
                 if(sync)
                     kParams.sync();
-                kParams.close();
+                
             } catch(Exception e) {
                 throw new RuntimeException("Could not execute kernel", e);
             }
@@ -303,12 +312,12 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             };
 
             try(KernelParamsWrapper kParams = new KernelParamsWrapper(op,sync,kernelParams).setResultOp(op, result)) {
-                invokeFunction(op, metrics,kParams.getContext(), kParams.getKernelParameters());
+                invokeFunction(op, sync,metrics,kParams.getContext(), kParams.getKernelParameters());
                 ctx = kParams.getContext();
                 if(sync)
                     kParams.sync();
             } catch(Exception e) {
-                throw new RuntimeException("Could not execute kernel", e);
+                throw new RuntimeException("Could not execute kernel: Kernel launch was: " + metrics, e);
             }
 
 
@@ -318,9 +327,12 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
 
         return ctx;
     }
+
+
     private CudaContext invoke(ScalarOp op,boolean sync) {
         checkOp(op);
-        GpuMetrics metrics = GpuMetrics.blockAndThreads(getType(op),op.n());
+        String functionName = op instanceof TransformOp || op instanceof Accumulation ? op.name() + "_strided" : op.name();
+        GpuMetrics metrics = GpuMetrics.blocksAndThreadsOccupancy(functionName, getType(op), op.n());
 
 
         CudaContext ctx = null;
@@ -347,11 +359,12 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                     BlasBufferUtil.getBlasStride(op.x()),
                     BlasBufferUtil.getBlasStride(op.y()),
                     toArgs(op.extraArgs(), getType(op)),
-                    op.z(),metrics.getBlockSize()
+                    op.z()
+                    ,metrics.getBlockSize()
             };
 
             try(KernelParamsWrapper kParams = new KernelParamsWrapper(op,sync,kernelParams).setResultArray(op.z())) {
-                invokeFunction(op,metrics,kParams.getContext(), kParams.getKernelParameters());
+                invokeFunction(op,sync,metrics,kParams.getContext(), kParams.getKernelParameters());
                 ctx = kParams.getContext();
                 if(sync)
                     kParams.sync();
@@ -379,11 +392,11 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             };
 
             try(KernelParamsWrapper kParams = new KernelParamsWrapper(op,sync,kernelParams).setResultArray(op.z())) {
-                invokeFunction(op, metrics,kParams.getContext(), kParams.getKernelParameters());
+                invokeFunction(op,sync, metrics,kParams.getContext(), kParams.getKernelParameters());
                 ctx = kParams.getContext();
                 if(sync)
                     kParams.sync();
-                kParams.close();
+                
             }
 
             catch(Exception e) {
@@ -404,7 +417,9 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             super.exec(op);
             return null;
         }
-        GpuMetrics metrics = GpuMetrics.blockAndThreads(getType(op),op.n());
+
+        String functionName = op instanceof TransformOp || op instanceof Accumulation ? op.name() + "_strided" : op.name();
+        GpuMetrics metrics = GpuMetrics.blocksAndThreadsOccupancy(functionName, getType(op), op.n());
 
         CudaContext ctx;
         if (op.y() != null) {
@@ -443,7 +458,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             };
 
             try(KernelParamsWrapper kParams = new KernelParamsWrapper(op,sync,kernelParams).setResultArray(op.z())) {
-                invokeFunction(op, metrics,kParams.getContext(), kParams.getKernelParameters());
+                invokeFunction(op,sync, metrics,kParams.getContext(), kParams.getKernelParameters());
                 ctx = kParams.getContext();
                 if(sync)
                     kParams.sync();
@@ -464,7 +479,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             };
 
             try(KernelParamsWrapper kParams = new KernelParamsWrapper(op,sync,kernelParams).setResultArray(op.z())) {
-                invokeFunction(op, metrics,kParams.getContext(), kParams.getKernelParameters());
+                invokeFunction(op,sync, metrics,kParams.getContext(), kParams.getKernelParameters());
                 ctx = kParams.getContext();
                 if(sync)
                     kParams.sync();
@@ -478,7 +493,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
     }
 
 
-    private void invokeFunction(Op op,GpuMetrics metrics,CudaContext cudaContext, Object... kernelParams) {
+    private void invokeFunction(Op op,boolean sync,GpuMetrics metrics,CudaContext cudaContext, Object... kernelParams) {
         /**
          * Invoke a cuda kernel by name. This will be wrt the function name.
          * Functions that are accumulations or transforms have names that end with _strided.
@@ -487,10 +502,13 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
         String functionName = op instanceof TransformOp || op instanceof Accumulation ? op.name() + "_strided" : op.name();
         //force blocks and threads to be even
         KernelFunctions.invoke(
-                metrics
+                metrics,
+                false
                 ,functionName
                 ,getType(op),cudaContext
                 ,kernelParams);
+
+
 
     }
 

@@ -1,10 +1,8 @@
 package org.nd4j.linalg.jcublas.gpumetrics;
 
 import jcuda.Sizeof;
-import jcuda.driver.CUfunction;
 import jcuda.driver.CUoccupancyB2DSize;
 import jcuda.driver.JCudaDriver;
-import jcuda.runtime.JCuda;
 import jcuda.runtime.cudaDeviceProp;
 import jcuda.utils.KernelLauncher;
 import lombok.AllArgsConstructor;
@@ -12,10 +10,8 @@ import lombok.Data;
 import org.nd4j.linalg.jcublas.context.ContextHolder;
 import org.nd4j.linalg.jcublas.kernel.KernelFunctionLoader;
 
-import static  jcuda.driver.JCudaDriver.*;
 import static  jcuda.runtime.JCuda.*;
 import org.nd4j.linalg.jcublas.util.PointerUtil;
-import org.nd4j.linalg.util.MathUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -108,6 +104,41 @@ public class GpuMetrics  {
         int sharedMemSize =   (threadsAndBlocks[0] <= 32) ? 2 * threadsAndBlocks[0] * size : threadsAndBlocks[0] * size;
         return new GpuMetrics(threadsAndBlocks[0],threadsAndBlocks[1],sharedMemSize);
     }
+
+
+    /**
+     *
+     * @param functionName
+     * @param dataType
+     * @param n
+     * @return
+     */
+    public static GpuMetrics blocksAndThreadsOccupancy(String functionName,String dataType, int n) {
+        int[] gridSize = new int[1];
+        int[] blockSize = new int[1];
+        KernelLauncher launcher = KernelFunctionLoader.launcher(functionName, dataType);
+        CUoccupancyB2DSize size = dataType.equals("float") ? FLOAT : DOUBLE;
+        JCudaDriver.cuOccupancyMaxPotentialBlockSize(gridSize,blockSize,launcher.getFunction(),size,0,0);
+
+        int gridSizeRet = (n + blockSize[0] - 1) / blockSize[0];
+        int blockSizeRet  = blockSize[0];
+        //for smaller problems, ensure no index out of bounds
+        if(blockSizeRet > n)
+            blockSizeRet = n;
+        int maxBlockSize = ContextHolder.getInstance().getCurrentGpuInformation().getMaxThreadsPerBlock();
+        if(blockSizeRet > maxBlockSize)
+            blockSizeRet = maxBlockSize;
+        int maxGridSize = ContextHolder.getInstance().getCurrentGpuInformation().getMaxGrimDimX();
+        if(gridSizeRet > maxGridSize)
+            gridSizeRet = maxGridSize;
+        int maxSharedMem = ContextHolder.getInstance().getCurrentGpuInformation().getMaxSharedMemoryPerBlock();
+        int sharedMemSize = blockSizeRet * (dataType.equals("float") ? Sizeof.FLOAT : Sizeof.DOUBLE);
+        if(sharedMemSize > maxSharedMem)
+            sharedMemSize = maxSharedMem;
+        return new GpuMetrics(gridSizeRet,blockSizeRet,sharedMemSize);
+    }
+
+
 
 
 
