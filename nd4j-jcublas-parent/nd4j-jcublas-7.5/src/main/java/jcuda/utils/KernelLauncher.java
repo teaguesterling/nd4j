@@ -430,12 +430,12 @@ public class KernelLauncher {
         JCudaDriver.cuLinkAddFile(state, CUjitInputType.CU_JIT_INPUT_LIBRARY, "/usr/local/cuda-7.5/lib64/libcudadevrt.a", jitOptions);
         cuLinkAddFile(state, CUjitInputType.CU_JIT_INPUT_CUBIN, moduleFileName, jitOptions);
 
-        long sz[] = new long[60000];
+        long sz[] = new long[1];
         Pointer image = new Pointer();
         cuLinkComplete(state, image, sz);
-        cuLinkDestroy(state);
-         kernelLauncher.initModule(image);
+        kernelLauncher.initModule(image);
         kernelLauncher.initFunction(functionName);
+        cuLinkDestroy(state);
         return kernelLauncher;
     }
 

@@ -856,32 +856,33 @@ public abstract class BaseDataBuffer implements DataBuffer {
             Type t = Type.valueOf(s.readUTF());
             if(t == Type.DOUBLE) {
                 if(allocationMode == AllocationMode.HEAP) {
-                    floatData = new float[(int) length()];
+                    doubleData = new double[length()];
                     for(int i = 0; i < length(); i++) {
                         put(i,s.readDouble());
                     }
                 }
                 else {
-                    dataBuffer = Unpooled.buffer((int) length() * getElementSize()).order(ByteOrder.nativeOrder());
+                    dataBuffer = Unpooled.buffer( length() * getElementSize()).order(ByteOrder.nativeOrder());
                     for(int i = 0; i < length(); i++) {
                         put(i,s.readDouble());
                     }
                 }
             }
-            else {
+            else if(t == Type.FLOAT) {
                 if(allocationMode == AllocationMode.HEAP) {
-                    doubleData = new double[(int) length()];
+                    floatData = new float[length()];
                     for(int i = 0; i < length(); i++) {
                         put(i,s.readFloat());
                     }
                 }
                 else {
-                    dataBuffer = Unpooled.buffer((int) length() * getElementSize()).order(ByteOrder.nativeOrder());
+                    dataBuffer = Unpooled.buffer( length() * getElementSize()).order(ByteOrder.nativeOrder());
                     for(int i = 0; i < length(); i++) {
                         put(i,s.readFloat());
                     }
                 }
             }
+
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
