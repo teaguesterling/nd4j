@@ -33,6 +33,7 @@ import org.springframework.core.io.ClassPathResource;
 import java.io.*;
 import java.nio.charset.Charset;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Pattern;
 
 
@@ -299,7 +300,7 @@ public class KernelFunctionLoader {
 
             for (String module : split) {
                 log.info("Is cached: " + module);
-                String path = kernelPath + module + ".ptx";
+                String path = kernelPath + module + ".cubin";
                 String name = module + "_" + dataType;
                 paths.put(name,path);
 
@@ -309,7 +310,7 @@ public class KernelFunctionLoader {
         try {
             for (String module : split) {
                 log.info("Loading " + module);
-                String path = kernelPath + "output" + File.separator+  module + ".cubin";
+                String path = kernelPath + "output" + File.separator +  module + ".cubin";
                 String name = module + "_" + dataType;
                 paths.put(name,path);
                 KernelLauncher launch = KernelLauncher.load(path, name);
@@ -326,6 +327,21 @@ public class KernelFunctionLoader {
                 throw new RuntimeException(e);
         }
 
+    }
+
+    // Implementing Fisher–Yates shuffle
+    static void shuffleArray(String[] ar)
+    {
+        // If running on Java 6 or older, use `new Random()` on RHS here
+        Random rnd = ThreadLocalRandom.current();
+        for (int i = ar.length - 1; i > 0; i--)
+        {
+            int index = rnd.nextInt(i + 1);
+            // Simple swap
+            String a = ar[index];
+            ar[index] = ar[i];
+            ar[i] = a;
+        }
     }
 
     //extract the source file

@@ -1,9 +1,9 @@
 /*
- * JCudaUtils - Utilities for JCuda 
+ * JCudaUtils - Utilities for JCuda
  * http://www.jcuda.org
  *
  * Copyright (c) 2010 Marco Hutter - http://www.jcuda.org
- * 
+ *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
  * files (the "Software"), to deal in the Software without
@@ -12,10 +12,10 @@
  * copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following
  * conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
  * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -28,12 +28,14 @@
 
 package jcuda.utils;
 
+import com.google.common.io.ByteStreams;
 import jcuda.CudaException;
 import jcuda.Pointer;
 import jcuda.driver.*;
 import jcuda.runtime.JCuda;
 import jcuda.runtime.dim3;
-import org.nd4j.linalg.jcublas.SimpleJCublas;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.nd4j.linalg.jcublas.context.ContextHolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,16 +48,16 @@ import static jcuda.driver.JCudaDriver.*;
  * This is a utility class that simplifies the setup and launching
  * of CUDA kernels using the JCuda Driver API. <br />
  * <br />
- * Instances of this class may be created using one of the following 
+ * Instances of this class may be created using one of the following
  * methods: <br />
  * <ul>
  *   <li>
- *     {@link KernelLauncher#compile(String, String, String...)} will 
- *     compile a kernel from a String containing the CUDA source code 
+ *     {@link KernelLauncher#compile(String, String, String...)} will
+ *     compile a kernel from a String containing the CUDA source code
  *   </li>
  *   <li>
  *     {@link KernelLauncher#create(String, String, String...)} will
- *     create a kernel for a function that is contained in a CUDA 
+ *     create a kernel for a function that is contained in a CUDA
  *     source file
  *   </li>
  *   <li>
@@ -64,38 +66,38 @@ import static jcuda.driver.JCudaDriver.*;
  *   </li>
  *   <li>
  *     {@link KernelLauncher#load(InputStream, String)} will load a kernel
- *     from PTX- or CUBIN data which is provided via an InputStream 
+ *     from PTX- or CUBIN data which is provided via an InputStream
  *     (useful for packaging PTX- or CUBIN files into JAR archives)<br />
  *   </li>
  * </ul>
  *
  * <br />
- * These instances may then be used to call a kernel function with 
- * the {@link KernelLauncher#call(Object...)} method. The actual 
+ * These instances may then be used to call a kernel function with
+ * the {@link KernelLauncher#call(Object...)} method. The actual
  * kernel function arguments which are passed to this method
- * will be set up automatically, and aligned appropriately for 
- * their respective size.<br /> 
+ * will be set up automatically, and aligned appropriately for
+ * their respective size.<br />
  * <br />
- * The setup of the execution may be performed similarly as the invocation 
+ * The setup of the execution may be performed similarly as the invocation
  * of a kernel when using the Runtime API in C. Such a call has the
  * form<br />
  * <code>
- * &nbsp;&nbsp;&nbsp;&nbsp;kernel&lt;&lt;&lt;gridDim, blockDim, 
+ * &nbsp;&nbsp;&nbsp;&nbsp;kernel&lt;&lt;&lt;gridDim, blockDim,
  * sharedMemorySize, stream&gt;&gt;&gt;(...);
  * </code>
  * <br />
- * where 
+ * where
  * <ul>
  *   <li>
- *     <b>gridDim</b> is a dim3 which specifies the number of blocks per  
+ *     <b>gridDim</b> is a dim3 which specifies the number of blocks per
  *     grid
  *   </li>
  *   <li>
- *     <b>blockDim</b> is a dim3 that specifies the number of threads 
+ *     <b>blockDim</b> is a dim3 that specifies the number of threads
  *     per block
  *   </li>
  *   <li>
- *     <b>sharedMemorySize</b> is the size of the shared memory for 
+ *     <b>sharedMemorySize</b> is the size of the shared memory for
  *     the kernel
  *   </li>
  *   <li>
@@ -107,22 +109,22 @@ import static jcuda.driver.JCudaDriver.*;
  * method: <br />
  * <br />
  * <code>
- * &nbsp;&nbsp;&nbsp;&nbsp;kernelLauncher.setup(gridDim, 
+ * &nbsp;&nbsp;&nbsp;&nbsp;kernelLauncher.setup(gridDim,
  * blockDim, sharedMemorySize, stream).call(...);
  * </code>
  * <br />
  * <br />
- * When default values for some of the parameters should be used, 
+ * When default values for some of the parameters should be used,
  * one of the overloaded versions of the setup method may be called:
- * <br /> 
+ * <br />
  * <br />
  * <code>
- * &nbsp;&nbsp;&nbsp;&nbsp;kernelLauncher.setup(gridDim, 
+ * &nbsp;&nbsp;&nbsp;&nbsp;kernelLauncher.setup(gridDim,
  * blockDim).call(kernel);
  * </code>
  * <br />
  * <br />
- * The parameters may also be set individually:<br /> 
+ * The parameters may also be set individually:<br />
  * <br />
  * <code>
  * &nbsp;&nbsp;&nbsp;&nbsp;kernelLauncher.setGridSize(gridSize);<br />
@@ -158,7 +160,7 @@ public class KernelLauncher {
      * Set the path to the NVCC compiler. For example: <br />
      * <code>setCompilerPath("C:/CUDA/bin");</code>
      * <br />
-     * By default, this path is empty, assuming that the compiler 
+     * By default, this path is empty, assuming that the compiler
      * is in a path that is visible via an environment variable.
      *
      * @param path The path to the NVCC compiler.
@@ -197,31 +199,31 @@ public class KernelLauncher {
     }
 
     /**
-     * Create a new KernelLauncher for the function with the given 
+     * Create a new KernelLauncher for the function with the given
      * name, that is defined in the given source code. <br />
      * <br />
      * The source code is stored in a temporary .CU CUDA source file,
-     * and a PTX file is compiled from this source file using the 
-     * NVCC (NVIDIA CUDA C Compiler) in a separate process. 
-     * The optional nvccArguments are passed to the NVCC.<br /> 
+     * and a PTX file is compiled from this source file using the
+     * NVCC (NVIDIA CUDA C Compiler) in a separate process.
+     * The optional nvccArguments are passed to the NVCC.<br />
      * <br />
-     * The NVCC has to be in a visible directory. E.g. for Windows, the 
-     * NVCC.EXE has to be in a directory that is contained in the PATH 
-     * environment variable. Alternatively, the path to the NVCC may 
+     * The NVCC has to be in a visible directory. E.g. for Windows, the
+     * NVCC.EXE has to be in a directory that is contained in the PATH
+     * environment variable. Alternatively, the path to the NVCC may
      * be specified by calling {@link KernelLauncher#setCompilerPath(String)}
      * with the respective path. <br />
      * <br />
-     * <u><b>Note</b></u>: In order to make the function accessible 
+     * <u><b>Note</b></u>: In order to make the function accessible
      * by the name it has in the source code, the function has to
      * be declared as an <code><u>extern "C"</u></code> function: <br />
      *  <br />
      * <code>
      * <b>extern "C"</b><br />
-     * __global__ void functionName(...)<br /> 
+     * __global__ void functionName(...)<br />
      * {<br />
      *     ... <br />
      * }<br />
-     * </code> 
+     * </code>
      *
      *
      * @see KernelLauncher#create(String, String, String...)
@@ -232,8 +234,8 @@ public class KernelLauncher {
      * @param functionName The name of the function.
      * @param nvccArguments Optional arguments for the NVCC
      * @return The KernelLauncher for the specified function
-     * @throws CudaException If the creation of the CU- or PTX file 
-     * fails, or the PTX may not be loaded, or the specified 
+     * @throws CudaException If the creation of the CU- or PTX file
+     * fails, or the PTX may not be loaded, or the specified
      * function can not be obtained.
      */
     public static KernelLauncher compile(
@@ -280,32 +282,32 @@ public class KernelLauncher {
 
 
     /**
-     * Create a new KernelLauncher for the function with the given 
+     * Create a new KernelLauncher for the function with the given
      * name, that is contained in the .CU CUDA source file with the
      * given name. <br />
      * <br />
-     * <u><b>Note</b></u>: In order to make the function accessible 
+     * <u><b>Note</b></u>: In order to make the function accessible
      * by the name it has in the source code, the function has to
      * be declared as an <code><u>extern "C"</u></code> function: <br />
      *  <br />
      * <code>
      * <b>extern "C"</b><br />
-     * __global__ void functionName(...)<br /> 
+     * __global__ void functionName(...)<br />
      * {<br />
      *     ... <br />
      * }<br />
      * </code>
-     * <br /> 
-     * The extension of the given file name is replaced with "ptx".
-     * If the PTX file with the resulting name does not exist, 
-     * or is older than the .CU file, it is compiled from 
-     * the specified source file using the NVCC (NVIDIA CUDA C 
-     * Compiler) in a separate process. The optional nvccArguments 
-     * are passed to the NVCC.<br /> 
      * <br />
-     * The NVCC has to be in a visible directory. E.g. for Windows, the 
-     * NVCC.EXE has to be in a directory that is contained in the PATH 
-     * environment variable. Alternatively, the path to the NVCC may 
+     * The extension of the given file name is replaced with "ptx".
+     * If the PTX file with the resulting name does not exist,
+     * or is older than the .CU file, it is compiled from
+     * the specified source file using the NVCC (NVIDIA CUDA C
+     * Compiler) in a separate process. The optional nvccArguments
+     * are passed to the NVCC.<br />
+     * <br />
+     * The NVCC has to be in a visible directory. E.g. for Windows, the
+     * NVCC.EXE has to be in a directory that is contained in the PATH
+     * environment variable. Alternatively, the path to the NVCC may
      * be specified by calling {@link KernelLauncher#setCompilerPath(String)}
      * with the respective path. <br />
      *
@@ -329,38 +331,38 @@ public class KernelLauncher {
     }
 
     /**
-     * Create a new KernelLauncher for the function with the given 
+     * Create a new KernelLauncher for the function with the given
      * name, that is contained in the .CU CUDA source file with the
      * given name. <br />
      * <br />
-     * <u><b>Note</b></u>: In order to make the function accessible 
+     * <u><b>Note</b></u>: In order to make the function accessible
      * by the name it has in the source code, the function has to
      * be declared as an <code><u>extern "C"</u></code> function: <br />
      *  <br />
      * <code>
      * <b>extern "C"</b><br />
-     * __global__ void functionName(...)<br /> 
+     * __global__ void functionName(...)<br />
      * {<br />
      *     ... <br />
      * }<br />
      * </code>
-     * <br /> 
+     * <br />
      * The extension of the given file name is replaced with "ptx".
-     * If the PTX file with the resulting name does not exist, 
-     * or is older than the .CU file, it is compiled from 
-     * the specified source file using the NVCC (NVIDIA CUDA C 
-     * Compiler) in a separate process. The optional nvccArguments 
-     * are passed to the NVCC.<br /> 
+     * If the PTX file with the resulting name does not exist,
+     * or is older than the .CU file, it is compiled from
+     * the specified source file using the NVCC (NVIDIA CUDA C
+     * Compiler) in a separate process. The optional nvccArguments
+     * are passed to the NVCC.<br />
      * <br />
-     * If the <code>forceRebuild</code> flag is 'true', then the 
-     * PTX file will be recompiled from the given source file, 
+     * If the <code>forceRebuild</code> flag is 'true', then the
+     * PTX file will be recompiled from the given source file,
      * even if it already existed or was newer than the source
-     * file, and the already existing PTX file will be 
-     * overwritten.<br /> 
+     * file, and the already existing PTX file will be
+     * overwritten.<br />
      * <br />
-     * The NVCC has to be in a visible directory. E.g. for Windows, the 
-     * NVCC.EXE has to be in a directory that is contained in the PATH 
-     * environment variable. Alternatively, the path to the NVCC may 
+     * The NVCC has to be in a visible directory. E.g. for Windows, the
+     * NVCC.EXE has to be in a directory that is contained in the PATH
+     * environment variable. Alternatively, the path to the NVCC may
      * be specified by calling {@link KernelLauncher#setCompilerPath(String)}
      * with the respective path. <br />
      *
@@ -417,31 +419,28 @@ public class KernelLauncher {
      * @param moduleFileName The name of the PTX- or CUBIN file
      * @param functionName The name of the function
      * @return The KernelLauncher for the specified function
-     * @throws CudaException If the PTX- or CUBIN may not be loaded, 
+     * @throws CudaException If the PTX- or CUBIN may not be loaded,
      * or the specified function can not be obtained.
      */
     public static KernelLauncher load(
             String moduleFileName, String functionName) {
         KernelLauncher kernelLauncher = new KernelLauncher();
-        JITOptions jitOptions = new JITOptions();
-        CUlinkState state = new CUlinkState();
-        cuLinkCreate(jitOptions, state);
-        boolean worked = false;
-        JCudaDriver.cuLinkAddFile(state, CUjitInputType.CU_JIT_INPUT_LIBRARY, "/usr/local/cuda-7.5/lib64/libcudadevrt.a", jitOptions);
-        cuLinkAddFile(state, CUjitInputType.CU_JIT_INPUT_CUBIN, moduleFileName, jitOptions);
 
-        long sz[] = new long[1];
-        Pointer image = new Pointer();
-        cuLinkComplete(state, image, sz);
-        kernelLauncher.initModule(image);
+        try {
+            kernelLauncher.initModule(ByteStreams.toByteArray(new FileInputStream(moduleFileName)));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
         kernelLauncher.initFunction(functionName);
-        cuLinkDestroy(state);
+
+
         return kernelLauncher;
     }
 
     /**
      * Create a new KernelLauncher which may be used to execute the
-     * specified function which is loaded from the PTX- or CUBIN 
+     * specified function which is loaded from the PTX- or CUBIN
      * data that is read from the given input stream.
      *
      * @see KernelLauncher#compile(String, String, String...)
@@ -452,7 +451,7 @@ public class KernelLauncher {
      * @param moduleInputStream The stream for the PTX- or CUBIN data
      * @param functionName The name of the function
      * @return The KernelLauncher for the specified function
-     * @throws CudaException If the PTX- or CUBIN may not be loaded, 
+     * @throws CudaException If the PTX- or CUBIN may not be loaded,
      * or the specified function can not be obtained.
      */
     public static KernelLauncher load(
@@ -467,7 +466,7 @@ public class KernelLauncher {
 
 
     /**
-     * Load the data from the file with the given name and returns 
+     * Load the data from the file with the given name and returns
      * it as a 0-terminated byte array
      *
      * @param fileName The name of the file
@@ -603,14 +602,14 @@ public class KernelLauncher {
     }
 
     /**
-     * Initializes this KernelLauncher. This method will try to 
-     * initialize the JCuda driver API. Then it will try to 
-     * attach to the current CUDA context. If no active CUDA 
+     * Initializes this KernelLauncher. This method will try to
+     * initialize the JCuda driver API. Then it will try to
+     * attach to the current CUDA context. If no active CUDA
      * context exists, then it will try to create one, for
-     * the device which is specified by the current 
+     * the device which is specified by the current
      * deviceNumber.
      *
-     * @throws CudaException If it is neither possible to 
+     * @throws CudaException If it is neither possible to
      * attach to an existing context, nor to create a new
      * context.
      */
@@ -618,27 +617,19 @@ public class KernelLauncher {
         context = ContextHolder.getInstance().getContext(deviceNumber);
     }
 
-    /**
-     * Sync the context for the current thread.
-     */
-    public static  void setContext() {
-        JCudaDriver.cuCtxSetCurrent(ContextHolder.getInstance().getContext());
-        JCuda.cudaSetDevice(ContextHolder.getInstance().getDeviceForThread());
-        JCudaDriver.cuCtxSynchronize();
-        JCuda.cudaDeviceSynchronize();
-    }
+
 
     /**
      * Create a new KernelLauncher which uses the same module as
-     * this KernelLauncher, but may be used to execute a different 
-     * function. All parameters (grid size, block size, shared 
-     * memory size and stream) of the returned KernelLauncher 
-     * will be independent of 'this' one and initially contain 
+     * this KernelLauncher, but may be used to execute a different
+     * function. All parameters (grid size, block size, shared
+     * memory size and stream) of the returned KernelLauncher
+     * will be independent of 'this' one and initially contain
      * the default values.
      *
      * @param functionName The name of the function
      * @return The KernelLauncher for the specified function
-     * @throws CudaException If the specified function can not 
+     * @throws CudaException If the specified function can not
      * be obtained from the module of this KernelLauncher.
      */
     public KernelLauncher forFunction(String functionName) {
@@ -647,6 +638,25 @@ public class KernelLauncher {
         kernelLauncher.initFunction(functionName);
         return kernelLauncher;
     }
+
+
+    /**
+     * Initialize the module for this KernelLauncher by loading
+     * the PTX- or CUBIN file with the given name.
+     *
+     * @param path The data from the PTX- or CUBIN file
+     */
+    private void loadModuleData(String path)
+    {
+        module = new CUmodule();
+        try {
+            InputStream fis = new FileInputStream(path);
+            JCudaDriver.cuModuleLoadData(module, ByteStreams.toByteArray(fis));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 
     /**
      * Initialize the module for this KernelLauncher by loading
@@ -657,9 +667,23 @@ public class KernelLauncher {
     private void initModule(Pointer moduleData)
     {
         module = new CUmodule();
-        cuModuleLoadDataEx(module,moduleData,
+        cuModuleLoadDataEx(module, moduleData,
                 0, new int[0], Pointer.to(new int[0]));
     }
+
+
+
+    /**
+     * Initialize the module for this KernelLauncher by loading
+     * the PTX- or CUBIN file with the given name.
+     *
+     * @param fileName The data from the PTX- or CUBIN file
+     */
+    private void initModule(String fileName) {
+        module = new CUmodule();
+        cuModuleLoad(module,fileName);
+    }
+
 
     /**
      * Initialize the module for this KernelLauncher by loading
@@ -670,8 +694,7 @@ public class KernelLauncher {
     private void initModule(byte moduleData[])
     {
         module = new CUmodule();
-        cuModuleLoadDataEx(module, Pointer.to(moduleData),
-                0, new int[0], Pointer.to(new int[0]));
+        cuModuleLoadData(module,moduleData);
     }
 
     /**
@@ -707,13 +730,13 @@ public class KernelLauncher {
     }
 
     /**
-     * Returns the module that was created from the PTX- or CUBIN file, and 
+     * Returns the module that was created from the PTX- or CUBIN file, and
      * which contains the function that should be executed. This
-     * module may also be used to access symbols and texture 
+     * module may also be used to access symbols and texture
      * references. However, clients should not modify or unload
      * the module.
      *
-     * @return The CUmodule 
+     * @return The CUmodule
      */
     public CUmodule getModule()
     {
@@ -721,16 +744,16 @@ public class KernelLauncher {
     }
 
     /**
-     * Set the grid size (number of blocks per grid) for the function 
+     * Set the grid size (number of blocks per grid) for the function
      * call.<br />
      * <br />
      * This corresponds to the first parameter in the runtime call:<br />
-     * <br /> 
+     * <br />
      * <code>
-     * kernel&lt;&lt;&lt;<b><u>gridSize</u></b>, blockSize, 
+     * kernel&lt;&lt;&lt;<b><u>gridSize</u></b>, blockSize,
      * sharedMemSize, stream&gt;&gt;&gt;(...);
      * </code>
-     * <br /> 
+     * <br />
      * <br />
      * The default grid size is (1,1,1)
      *
@@ -751,16 +774,16 @@ public class KernelLauncher {
     }
 
     /**
-     * Set the grid size (number of blocks per grid) for the function 
+     * Set the grid size (number of blocks per grid) for the function
      * call.<br />
      * <br />
      * This corresponds to the first parameter in the runtime call:<br />
-     * <br /> 
+     * <br />
      * <code>
-     * kernel&lt;&lt;&lt;<b><u>gridSize</u></b>, blockSize, 
+     * kernel&lt;&lt;&lt;<b><u>gridSize</u></b>, blockSize,
      * sharedMemSize, stream&gt;&gt;&gt;(...);
      * </code>
-     * <br /> 
+     * <br />
      * <br />
      * The default grid size is (1,1,1)
      *
@@ -783,16 +806,16 @@ public class KernelLauncher {
     }
 
     /**
-     * Set the block size (number of threads per block) for the function 
+     * Set the block size (number of threads per block) for the function
      * call.<br />
      * <br />
      * This corresponds to the second parameter in the runtime call:<br />
-     * <br /> 
+     * <br />
      * <code>
-     * kernel&lt;&lt;&lt;gridSize, <b><u>blockSize</u></b>, 
+     * kernel&lt;&lt;&lt;gridSize, <b><u>blockSize</u></b>,
      * sharedMemSize, stream&gt;&gt;&gt;(...);
      * </code>
-     * <br /> 
+     * <br />
      * <br />
      * The default block size is (1,1,1)
      *
@@ -815,16 +838,16 @@ public class KernelLauncher {
     }
 
     /**
-     * Set the size of the shared memory for the function 
+     * Set the size of the shared memory for the function
      * call.<br />
      * <br />
      * This corresponds to the third parameter in the runtime call:<br />
-     * <br /> 
+     * <br />
      * <code>
-     * kernel&lt;&lt;&lt;gridSize, blockSize, 
+     * kernel&lt;&lt;&lt;gridSize, blockSize,
      * <b><u>sharedMemSize</u></b>, stream&gt;&gt;&gt;(...);
      * </code>
-     * <br /> 
+     * <br />
      * <br />
      * The default shared memory size is 0.
      *
@@ -846,12 +869,12 @@ public class KernelLauncher {
      * Set the stream for the function call.<br />
      * <br />
      * This corresponds to the fourth parameter in the runtime call:<br />
-     * <br /> 
+     * <br />
      * <code>
-     * kernel&lt;&lt;&lt;gridSize, blockSize, 
+     * kernel&lt;&lt;&lt;gridSize, blockSize,
      * sharedMemSize, <b><u>stream</u></b>&gt;&gt;&gt;(...);
      * </code>
-     * <br /> 
+     * <br />
      * <br />
      * The default stream is null (0).
      *
@@ -938,9 +961,9 @@ public class KernelLauncher {
      * grid size, block size, shared memory size and stream, and
      * with the given arguments.<br />
      * <br />
-     * The given arguments must all be either of the type 
+     * The given arguments must all be either of the type
      * <code>Pointer</code>, or of a primitive type except boolean.
-     * Otherwise, a CudaException will be thrown. 
+     * Otherwise, a CudaException will be thrown.
      *
      * @param args The arguments for the function call
      * @throws CudaException if an argument with an invalid type
@@ -1055,10 +1078,10 @@ public class KernelLauncher {
     /**
      * The extension of the given file name is replaced with "ptx".
      * If the file with the resulting name does not exist or is older
-     * than the source file, it is compiled from the given file 
-     * using NVCC. If the forceRebuild flag is 'true', then the PTX 
+     * than the source file, it is compiled from the given file
+     * using NVCC. If the forceRebuild flag is 'true', then the PTX
      * file is rebuilt even if it already exists or is newer than the
-     * source file. The name of the PTX file is returned. 
+     * source file. The name of the PTX file is returned.
      *
      * @param cuFileName The name of the .CU file
      * @param forceRebuild Whether the PTX file should be re-created
