@@ -114,14 +114,8 @@ public class GpuMetrics  {
      * @return
      */
     public static GpuMetrics blocksAndThreadsOccupancy(String functionName,String dataType, int n) {
-        int[] gridSize = new int[1];
-        int[] blockSize = new int[1];
-        KernelLauncher launcher = KernelFunctionLoader.launcher(functionName, dataType);
-        CUoccupancyB2DSize size = dataType.equals("float") ? FLOAT : DOUBLE;
-        JCudaDriver.cuOccupancyMaxPotentialBlockSize(gridSize,blockSize,launcher.getFunction(),size,0,0);
-
-        int gridSizeRet = (n + blockSize[0] - 1) / blockSize[0];
-        int blockSizeRet  = blockSize[0];
+        int gridSizeRet = PointerUtil.getNumBlocks(n,ContextHolder.getInstance().getCurrentGpuInformation().getMaxBlockDimx(),ContextHolder.getInstance().getCurrentGpuInformation().getMaxThreadsPerBlock());
+        int blockSizeRet  = PointerUtil.getNumThreads(n,ContextHolder.getInstance().getCurrentGpuInformation().getMaxThreadsPerBlock());
         //for smaller problems, ensure no index out of bounds
         if(blockSizeRet > n)
             blockSizeRet = n;

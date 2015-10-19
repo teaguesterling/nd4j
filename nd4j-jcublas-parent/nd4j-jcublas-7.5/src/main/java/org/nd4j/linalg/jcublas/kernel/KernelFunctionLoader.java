@@ -20,10 +20,12 @@
 package org.nd4j.linalg.jcublas.kernel;
 
 
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Table;
 import jcuda.utils.KernelLauncher;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.nd4j.linalg.api.buffer.DataBuffer;
 import org.reflections.Reflections;
 import org.reflections.scanners.ResourcesScanner;
 import org.slf4j.Logger;
@@ -31,9 +33,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
 
 import java.io.*;
-import java.nio.charset.Charset;
 import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Pattern;
 
 
@@ -47,15 +47,15 @@ public class KernelFunctionLoader {
     public final static String NAME_SPACE = "org.nd4j.linalg.jcuda.jcublas";
     public final static String DOUBLE = NAME_SPACE + ".double.functions";
     public final static String FLOAT = NAME_SPACE + ".float.functions";
-    public final static String IMPORTS_FLOAT = NAME_SPACE + ".float.imports";
-    public final static String IMPORTS_DOUBLE = NAME_SPACE + ".double.imports";
     public final static String CACHE_COMPILED = NAME_SPACE + ".cache_compiled";
+    public final static String FUNCTION_KEY = "org.nd4j.linalg.jcuda.jcublas.functions";
     private Map<String,String> paths = new HashMap<>();
-    private static Logger log = LoggerFactory.getLogger(KernelFunctionLoader.class);
     private static KernelFunctionLoader INSTANCE;
-    private static Map<String,KernelLauncher> launchers = new HashMap<>();
+    private static Table<String,String,KernelLauncher> launchers = HashBasedTable.create();
     private boolean init = false;
-
+    private static Logger log = LoggerFactory.getLogger(KernelFunctionLoader.class);
+    private String kernelPath;
+    private String[] modules;
     private KernelFunctionLoader() {}
 
     /**
@@ -83,10 +83,6 @@ public class KernelFunctionLoader {
         return INSTANCE;
     }
 
-    private static String dataFolder(DataBuffer.Type type) {
-        return "/kernels/" + (type == DataBuffer.Type.FLOAT ? "float" : "double");
-    }
-
 
     /**
      * Get the launcher for a function
@@ -96,7 +92,8 @@ public class KernelFunctionLoader {
      * function and data type
      */
     public  static KernelLauncher launcher(String functionName,String dataType) {
-        return KernelFunctionLoader.getInstance().get(functionName,dataType);
+        KernelLauncher launcher =  KernelFunctionLoader.getInstance().get(functionName,dataType);
+        return launcher;
     }
 
 
@@ -121,11 +118,19 @@ public class KernelFunctionLoader {
      */
     public KernelLauncher get(String functionName,String dataType) {
         String name = functionName + "_" + dataType;
+        if(!launchers.containsRow(Thread.currentThread().getName())) {
+            try {
+                loadModules(modules,kernelPath);
+                log.debug("Loading modules for " + Thread.currentThread().getName());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
 
-        KernelLauncher launcher = launchers.get(name);
+        KernelLauncher launcher = launchers.get(Thread.currentThread().getName(),name);
         if(launcher == null) {
             name = functionName + "_strided" + "_" + dataType;
-            launcher = launchers.get(name);
+            launcher = launchers.get(Thread.currentThread().getName(),name);
             if(launcher == null)
                 return null;
         }
@@ -152,9 +157,6 @@ public class KernelFunctionLoader {
     public void load() throws Exception {
         if (init)
             return;
-        StringBuffer sb = new StringBuffer();
-        sb.append("nvcc -g -G -ptx");
-
         ClassPathResource res = new ClassPathResource("/cudafunctions.properties", KernelFunctionLoader.class.getClassLoader());
         if (!res.exists())
             throw new IllegalStateException("Please put a cudafunctions.properties in your class path");
@@ -162,7 +164,7 @@ public class KernelFunctionLoader {
         props.load(res.getInputStream());
         log.info("Registering cuda functions...");
         //ensure imports for each file before compiling
-        compileAndLoad(props, FLOAT, "float");
+        compileAndLoad(props);
 
         init = true;
     }
@@ -194,8 +196,8 @@ public class KernelFunctionLoader {
      * @return The name of the PTX file
      * @throws IOException If an I/O error occurs
      */
-    private void compileAndLoad(Properties props, String key, String dataType) throws IOException {
-        compileAndLoad(props, key, dataType,0);
+    private void compileAndLoad(Properties props) throws IOException {
+        compileAndLoad(props,0);
     }
 
     /**
@@ -225,126 +227,103 @@ public class KernelFunctionLoader {
      * @return The name of the PTX file
      * @throws IOException If an I/O error occurs
      */
-    private void compileAndLoad(Properties props, String key, String dataType,int compiledAttempts) throws IOException {
-        String f = props.getProperty(key);
-        StringBuffer sb = new StringBuffer();
-        sb.append("nvcc -g -G -lineinfo ");
-        sb.append(" --include-path ");
+    private void compileAndLoad(Properties props,int compiledAttempts) throws IOException {
+        String f = props.getProperty(FUNCTION_KEY);
         String tmpDir = System.getProperty("java.io.tmpdir");
         StringBuffer dir = new StringBuffer();
-        boolean cache = Boolean.parseBoolean(props.getProperty(CACHE_COMPILED, String.valueOf("true")));
-        sb.append(tmpDir)
-                .append(File.separator)
-                .append("kernels")
-                .append(File.separator).append(dataType).append(File.separator)
-                .toString();
-        String kernelPath = dir.append(tmpDir)
+        this.kernelPath = dir.append(tmpDir)
                 .append(File.separator)
                 .append("nd4j-kernels")
                 .append(File.separator)
                 .toString();
-        boolean shouldCompile = true;
-        if(cache) {
-            File tmpDir2 = new File(tmpDir + File.separator + "nd4j-kernels");
-            if(tmpDir2.exists()) {
-                shouldCompile = cache && !tmpDir2.exists() || compiledAttempts > 0;
-            }
-        }
+        File tmpDir2 = new File(tmpDir + File.separator + "nd4j-kernels");
 
+        boolean shouldCompile = !tmpDir2.exists() || tmpDir2.exists() && tmpDir2.listFiles().length <= 1;
         String[] split = f.split(",");
-
+        this.modules = split;
         if(shouldCompile) {
-            Set<String> resources = new Reflections("org.nd4j.nd4j-kernels", new ResourcesScanner()).getResources(Pattern.compile(".*"));
-            for(String resource : resources) {
-                extract(resource);
-                System.out.println(resource);
-            }
-
-            File outputDir = new File(System.getProperty("java.io.tmpdir") + File.separator + "nd4j-kernels","output");
-            outputDir.mkdirs();
-            String[] commands = {"bash","-c","make && /usr/bin/make install"};
-            ProcessBuilder probuilder = new ProcessBuilder(commands);
-            //You can set up your work directory
-            probuilder.directory(new File("/tmp/nd4j-kernels"));
-
-            Process process = probuilder.start();
-            //Read out dir output
-            InputStream is = process.getInputStream();
-            InputStreamReader isr = new InputStreamReader(is);
-            BufferedReader br = new BufferedReader(isr);
-            String line;
-            System.out.printf("Output of running %s is:\n",
-                    Arrays.toString(commands));
-            while ((line = br.readLine()) != null) {
-                System.out.println(line);
-            }
-
-            try {
-                int tid = process.waitFor();
-                BufferedInputStream bis = new BufferedInputStream(is);
-                List<String> list = IOUtils.readLines(bis, "UTF-8");
-                for(String item : list) {
-                    System.out.println(item);
-                }
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-
-            System.out.println("After resource");
-
-
+            loadCudaKernels();
         }
 
         else {
             log.info("Modules appear to already be compiled..attempting to use cache");
-
             for (String module : split) {
-                log.info("Is cached: " + module);
-                String path = kernelPath + module + ".cubin";
-                String name = module + "_" + dataType;
-                paths.put(name,path);
+                String path = kernelPath + module   + ".cubin";
+                String nameDouble = module + "_double";
+                String nameFloat = module + "_float";
+                paths.put(nameDouble,path);
+                paths.put(nameFloat,path);
 
             }
         }
 
         try {
-            for (String module : split) {
-                log.info("Loading " + module);
-                String path = kernelPath + "output" + File.separator +  module + ".cubin";
-                String name = module + "_" + dataType;
-                paths.put(name,path);
-                KernelLauncher launch = KernelLauncher.load(path, name);
-                launchers.put(name, launch);
-            }
-        }catch (Exception e) {
-            e.printStackTrace();
+            loadModules(split,kernelPath);
+        }
+
+        catch (Exception e) {
             if(!shouldCompile && compiledAttempts < 3) {
                 log.warn("Error loading modules...attempting recompile");
+                FileUtils.deleteDirectory(new File(kernelPath));
                 props.setProperty(CACHE_COMPILED,String.valueOf(true));
-                compileAndLoad(props, key, dataType,compiledAttempts + 1);
+                compileAndLoad(props,compiledAttempts + 1);
             }
             else
                 throw new RuntimeException(e);
         }
 
+
+
     }
 
-    // Implementing Fisher–Yates shuffle
-    static void shuffleArray(String[] ar)
-    {
-        // If running on Java 6 or older, use `new Random()` on RHS here
-        Random rnd = ThreadLocalRandom.current();
-        for (int i = ar.length - 1; i > 0; i--)
-        {
-            int index = rnd.nextInt(i + 1);
-            // Simple swap
-            String a = ar[index];
-            ar[index] = ar[i];
-            ar[i] = a;
+
+    private void loadModules(String[] split,String kernelPath) throws Exception {
+        for (String module : split) {
+            log.info("Loading " + module);
+            String path = kernelPath + "output" + File.separator +  module + ".cubin";
+            if(!new File(path).exists())
+                throw new IllegalStateException("Unable to find path " + path + ". Recompiling");
+            String name = module;
+            paths.put(name,path);
+            KernelLauncher launch = KernelLauncher.load(path, name,"float");
+            //reuse the module from the gpu but load the function instead
+            KernelLauncher doubleLauncher = KernelLauncher.load(name,"double",launch.getModule());
+            launchers.put(Thread.currentThread().getName(),name + "_double", doubleLauncher);
+            launchers.put(Thread.currentThread().getName(),name + "_float",launch);
         }
+
     }
 
-    //extract the source file
+
+    private void loadCudaKernels() throws IOException {
+        Set<String> resources = new Reflections("org.nd4j.nd4j-kernels", new ResourcesScanner()).getResources(Pattern.compile(".*"));
+        for(String resource : resources) {
+            extract(resource);
+        }
+
+        File outputDir = new File(System.getProperty("java.io.tmpdir") + File.separator + "nd4j-kernels","output");
+        outputDir.mkdirs();
+        log.info("Compiling cuda kernels");
+        String[] commands = {"bash","-c","make && /usr/bin/make install"};
+        ProcessBuilder probuilder = new ProcessBuilder(commands);
+        //You can set up your work directory
+        probuilder.directory(new File("/tmp/nd4j-kernels"));
+
+        Process process = probuilder.start();
+        //Read out dir output
+        InputStream is = process.getInputStream();
+        try {
+            process.waitFor();
+            BufferedInputStream bis = new BufferedInputStream(is);
+            List<String> list = IOUtils.readLines(bis, "UTF-8");
+            for(String item : list) {
+                log.info(item);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+    }
 
     /**
      * Extract the resource ot the specified
@@ -391,7 +370,6 @@ public class KernelFunctionLoader {
         bos.flush();
         bos.close();
 
-        out.deleteOnExit();
         return out.getAbsolutePath();
 
     }

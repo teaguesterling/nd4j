@@ -37,6 +37,7 @@ import jcuda.runtime.dim3;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.nd4j.linalg.jcublas.context.ContextHolder;
+import org.nd4j.linalg.jcublas.kernel.KernelFunctionLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -280,6 +281,9 @@ public class KernelLauncher {
     }
 
 
+    public void setModule(CUmodule module) {
+        this.module = module;
+    }
 
     /**
      * Create a new KernelLauncher for the function with the given
@@ -406,6 +410,30 @@ public class KernelLauncher {
         return kernelLauncher;
     }
 
+
+    /**
+     * Create a new KernelLauncher which may be used to execute the
+     * specified function which is loaded from the PTX- or CUBIN
+     * (CUDA binary) file with the given name.
+     *
+     * @see KernelLauncher#compile(String, String, String...)
+     * @see KernelLauncher#create(String, String, boolean, String...)
+     * @see KernelLauncher#load(String, String)
+     * @see KernelLauncher#load(InputStream, String)
+     *
+     * @param moduleFileName The name of the PTX- or CUBIN file
+     * @param functionName The name of the function
+     * @return The KernelLauncher for the specified function
+     * @throws CudaException If the PTX- or CUBIN may not be loaded,
+     * or the specified function can not be obtained.
+     */
+    public static KernelLauncher load(String functionName,String type,CUmodule module) {
+        KernelLauncher kernelLauncher = new KernelLauncher();
+        kernelLauncher.setModule(module);
+        kernelLauncher.initFunction(functionName + "_" + type);
+        return kernelLauncher;
+    }
+
     /**
      * Create a new KernelLauncher which may be used to execute the
      * specified function which is loaded from the PTX- or CUBIN
@@ -423,7 +451,7 @@ public class KernelLauncher {
      * or the specified function can not be obtained.
      */
     public static KernelLauncher load(
-            String moduleFileName, String functionName) {
+            String moduleFileName, String functionName,String type) {
         KernelLauncher kernelLauncher = new KernelLauncher();
 
         try {
@@ -432,9 +460,7 @@ public class KernelLauncher {
             e.printStackTrace();
         }
 
-        kernelLauncher.initFunction(functionName);
-
-
+        kernelLauncher.initFunction(functionName + "_" + type);
         return kernelLauncher;
     }
 
@@ -681,7 +707,7 @@ public class KernelLauncher {
      */
     private void initModule(String fileName) {
         module = new CUmodule();
-        cuModuleLoad(module,fileName);
+        cuModuleLoad(module, fileName);
     }
 
 
@@ -691,8 +717,7 @@ public class KernelLauncher {
      *
      * @param moduleData The data from the PTX- or CUBIN file
      */
-    private void initModule(byte moduleData[])
-    {
+    private void initModule(byte moduleData[]) {
         module = new CUmodule();
         cuModuleLoadData(module,moduleData);
     }
@@ -719,9 +744,9 @@ public class KernelLauncher {
         {
             int result = cuModuleGetFunction(function, module, functionName);
             if (result != CUresult.CUDA_SUCCESS)
-            {
                 throw new CudaException(functionErrorString);
-            }
+
+
         }
         catch (CudaException e)
         {

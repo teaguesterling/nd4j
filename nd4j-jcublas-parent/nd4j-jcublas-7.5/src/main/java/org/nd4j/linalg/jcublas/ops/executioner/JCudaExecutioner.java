@@ -34,6 +34,7 @@ import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.jcublas.CublasPointer;
 import org.nd4j.linalg.jcublas.SimpleJCublas;
 import org.nd4j.linalg.jcublas.buffer.JCudaBuffer;
+import org.nd4j.linalg.jcublas.context.ContextHolder;
 import org.nd4j.linalg.jcublas.context.CudaContext;
 import org.nd4j.linalg.jcublas.gpumetrics.GpuMetrics;
 import org.nd4j.linalg.jcublas.kernel.KernelFunctionLoader;
@@ -192,6 +193,8 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
     @Override
     public Op exec(Op op) {
         checkOp(op);
+        ContextHolder.getInstance().setContext();
+
         //linear views and oblong offsets can't be handled by the gpu (due to the way the buffers are interpreted as vectors)
         if(op.x() instanceof IComplexNDArray
                 || executionMode() == ExecutionMode.JAVA || op.isPassThrough())
@@ -288,7 +291,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                 ctx = kParams.getContext();
                 if(sync)
                     kParams.sync();
-                
+
             } catch(Exception e) {
                 throw new RuntimeException("Could not execute kernel", e);
             }
@@ -332,6 +335,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
     private CudaContext invoke(ScalarOp op,boolean sync) {
         checkOp(op);
         String functionName = op instanceof TransformOp || op instanceof Accumulation ? op.name() + "_strided" : op.name();
+
         GpuMetrics metrics = GpuMetrics.blocksAndThreadsOccupancy(functionName, getType(op), op.n());
 
 
@@ -396,7 +400,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                 ctx = kParams.getContext();
                 if(sync)
                     kParams.sync();
-                
+
             }
 
             catch(Exception e) {
