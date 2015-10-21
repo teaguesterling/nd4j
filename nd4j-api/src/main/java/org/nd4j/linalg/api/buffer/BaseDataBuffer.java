@@ -152,6 +152,9 @@ public abstract class BaseDataBuffer implements DataBuffer {
             if(dataType() == Type.DOUBLE) {
                 put(i,0.0);
             }
+            else if(dataType() == Type.INT) {
+                put(i, 0);
+            }
             else {
                 put(i,(float) 0.0);
             }
@@ -260,7 +263,7 @@ public abstract class BaseDataBuffer implements DataBuffer {
             this.intData = data;
         else {
             for (int i = 0; i < data.length; i++) {
-                dataBuffer.setInt(i, data[i]);
+                put(i,data[i]);
             }
         }
 
@@ -578,8 +581,12 @@ public abstract class BaseDataBuffer implements DataBuffer {
 
         if(dataType() == Type.FLOAT) {
             dirty.set(false);
-
             return dataBuffer.getFloat(i * getElementSize());
+        }
+
+        if(dataType() == Type.INT) {
+            dirty.set(false);
+            return dataBuffer.getInt(i * getElementSize());
         }
 
         dirty.set(false);
@@ -617,6 +624,8 @@ public abstract class BaseDataBuffer implements DataBuffer {
     public Number getNumber(int i) {
         if(dataType() == Type.DOUBLE)
             return getDouble(i);
+        else if(dataType() == Type.INT)
+            return getInt(i);
         return getFloat(i);
     }
 
@@ -666,6 +675,10 @@ public abstract class BaseDataBuffer implements DataBuffer {
                 ensureWritable(i,8);
                 dataBuffer.setDouble(i * 8, element);
 
+            }
+            else if(dataType() == Type.INT) {
+                ensureWritable(i, 4);
+                dataBuffer.setInt(i * 4, (int) element);
             }
 
             else

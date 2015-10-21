@@ -24,6 +24,7 @@ package org.nd4j.linalg.jcublas.kernel;
 import jcuda.utils.KernelLauncher;
 import org.nd4j.linalg.jcublas.buffer.CudaDoubleDataBuffer;
 import org.nd4j.linalg.jcublas.buffer.CudaFloatDataBuffer;
+import org.nd4j.linalg.jcublas.buffer.CudaIntDataBuffer;
 import org.nd4j.linalg.jcublas.buffer.JCudaBuffer;
 import org.nd4j.linalg.jcublas.context.CudaContext;
 import org.nd4j.linalg.jcublas.gpumetrics.GpuMetrics;
@@ -117,6 +118,20 @@ public class KernelFunctions {
         if(sync)
             cudaContext.syncStream();
 
+    }
+
+
+    /**
+     * Allocate a pointer of a given data type
+     *
+     * @param data the data for the pointer
+     * @return the pointer
+     */
+    public static JCudaBuffer alloc(int[] data) {
+        // Allocate the device input data, and copy the
+        // host input data to the device
+        JCudaBuffer doubleBuffer = new CudaIntDataBuffer(data);
+        return doubleBuffer;
     }
 
 

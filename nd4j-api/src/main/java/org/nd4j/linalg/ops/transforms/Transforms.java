@@ -700,7 +700,6 @@ public class Transforms {
     private static INDArray exec(TransformOp op) {
         if(op.x().isCleanedUp())
             throw new IllegalStateException("NDArray already freed");
-        INDArray arr2 =  Nd4j.getExecutioner().execAndReturn(new Sin(op.x()));
         return Nd4j.getExecutioner().execAndReturn(op);
     }
 

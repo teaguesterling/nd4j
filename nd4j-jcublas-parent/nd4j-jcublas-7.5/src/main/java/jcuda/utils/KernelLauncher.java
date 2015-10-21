@@ -229,7 +229,6 @@ public class KernelLauncher {
      *
      * @see KernelLauncher#create(String, String, String...)
      * @see KernelLauncher#create(String, String, boolean, String...)
-     * @see KernelLauncher#load(String, String)
      *
      * @param sourceCode The source code containing the function
      * @param functionName The name of the function.
@@ -317,7 +316,6 @@ public class KernelLauncher {
      *
      * @see KernelLauncher#compile(String, String, String...)
      * @see KernelLauncher#create(String, String, boolean, String...)
-     * @see KernelLauncher#load(String, String)
      * @see KernelLauncher#load(InputStream, String)
      *
      * @param cuFileName The name of the source file.
@@ -372,7 +370,6 @@ public class KernelLauncher {
      *
      * @see KernelLauncher#compile(String, String, String...)
      * @see KernelLauncher#create(String, String, String...)
-     * @see KernelLauncher#load(String, String)
      * @see KernelLauncher#load(InputStream, String)
      *
      * @param cuFileName The name of the source file.
@@ -418,10 +415,8 @@ public class KernelLauncher {
      *
      * @see KernelLauncher#compile(String, String, String...)
      * @see KernelLauncher#create(String, String, boolean, String...)
-     * @see KernelLauncher#load(String, String)
      * @see KernelLauncher#load(InputStream, String)
      *
-     * @param moduleFileName The name of the PTX- or CUBIN file
      * @param functionName The name of the function
      * @return The KernelLauncher for the specified function
      * @throws CudaException If the PTX- or CUBIN may not be loaded,
@@ -441,7 +436,6 @@ public class KernelLauncher {
      *
      * @see KernelLauncher#compile(String, String, String...)
      * @see KernelLauncher#create(String, String, boolean, String...)
-     * @see KernelLauncher#load(String, String)
      * @see KernelLauncher#load(InputStream, String)
      *
      * @param moduleFileName The name of the PTX- or CUBIN file
@@ -471,7 +465,6 @@ public class KernelLauncher {
      *
      * @see KernelLauncher#compile(String, String, String...)
      * @see KernelLauncher#create(String, String, boolean, String...)
-     * @see KernelLauncher#load(String, String)
      * @see KernelLauncher#load(InputStream, String)
      *
      * @param moduleInputStream The stream for the PTX- or CUBIN data
@@ -1052,27 +1045,45 @@ public class KernelLauncher {
                 //logger.info("argument " + i + " type is Double");
             }
 
-            else if (arg instanceof double[])
-            {
-                double[] value = (double[])arg;
-                Pointer pointer = Pointer.to(value);
-                kernelParameters[i] = pointer;
-                //logger.info("argument " + i + " type is double[]");
+            /**
+             * Of note here. double[] of length 1 is
+             * passed to the cuda kernel as a direct double.
+             * Eg: double
+             * Rather than double *
+             * If it's actually, a buffer, we need to ensure
+             * data is allocated on the gpu (hence why we throw the exception)
+             *
+             * This is applicable for any numerical primitive array (the below few)
+             */
+            else if (arg instanceof double[]) {
+                double[] d = (double[]) arg;
+                if(d.length == 1)
+                    kernelParameters[i] = Pointer.to(d);
+                else
+                    throw new IllegalArgumentException("Please wrap double arrays in a buffer with kernelfunctions.alloc()");
             }
+
+
+
             else if (arg instanceof float[])
             {
-                float[] value = (float[])arg;
-                Pointer pointer = Pointer.to(value);
-                kernelParameters[i] = pointer;
-                //logger.info("argument " + i + " type is float[]");
+                float[] f = (float[]) arg;
+                if(f.length == 1)
+                    kernelParameters[i] = Pointer.to(f);
+
+                else
+                    throw new IllegalArgumentException("Please wrap float arrays in a buffer with kernelfunctions.alloc()");
+
             }
 
             else if (arg instanceof int[])
             {
-                int[] value = (int[])arg;
-                Pointer pointer = Pointer.to(value);
-                kernelParameters[i] = pointer;
-                //logger.info("argument " + i + " type is int[]");
+                int[] i2 = (int[]) arg;
+                if(i2.length == 1)
+                    kernelParameters[i] = Pointer.to(i2);
+                else
+                    throw new IllegalArgumentException("Please wrap int arrays in a buffer with kernelfunctions.alloc()");
+
             }
             else if(arg instanceof jcuda.jcurand.curandGenerator) {
                 jcuda.jcurand.curandGenerator rng = (jcuda.jcurand.curandGenerator) arg;

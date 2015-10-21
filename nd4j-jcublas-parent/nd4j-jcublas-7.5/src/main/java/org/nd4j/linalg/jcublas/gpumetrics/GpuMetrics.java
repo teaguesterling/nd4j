@@ -48,6 +48,36 @@ public class GpuMetrics  {
 
 
     /**
+     * Outputs the expected gpu information
+     * to send to the gpu for cuda
+     * kernel metadata.
+     * The first entry is the block size
+     * The second entry is the grid size
+     * The third entry is the shared memory
+     * @return a 3 length array
+     * representing the gpu information
+     */
+    public int[] getGpuDefinitionInfo() {
+        int[] gpuDef = new int[3];
+        gpuDef[0] = getBlockSize();
+        gpuDef[1] = getGridSize();
+        gpuDef[2] = getSharedMemory();
+        return gpuDef;
+    }
+
+    public int getGridSize() {
+        return gridSize;
+    }
+
+    public int getBlockSize() {
+        return blockSize;
+    }
+
+    public int getSharedMemory() {
+        return sharedMemory;
+    }
+
+    /**
      * Given n, max threads
      * @param n the number of elements to process
      * @param maxThreads the max number of threads
@@ -114,8 +144,14 @@ public class GpuMetrics  {
      * @return
      */
     public static GpuMetrics blocksAndThreadsOccupancy(String functionName,String dataType, int n) {
-        int gridSizeRet = PointerUtil.getNumBlocks(n,ContextHolder.getInstance().getCurrentGpuInformation().getMaxBlockDimx(),ContextHolder.getInstance().getCurrentGpuInformation().getMaxThreadsPerBlock());
-        int blockSizeRet  = PointerUtil.getNumThreads(n,ContextHolder.getInstance().getCurrentGpuInformation().getMaxThreadsPerBlock());
+        int[] gridSize = new int[1];
+        int[] blockSize = new int[1];
+        KernelLauncher launcher = KernelFunctionLoader.launcher(functionName, dataType);
+        CUoccupancyB2DSize size = dataType.equals("float") ? FLOAT : DOUBLE;
+        JCudaDriver.cuOccupancyMaxPotentialBlockSize(gridSize,blockSize,launcher.getFunction(),size,0,0);
+
+        int gridSizeRet = (n +  blockSize[0] - 1) / blockSize[0];
+        int blockSizeRet  = blockSize[0];
         //for smaller problems, ensure no index out of bounds
         if(blockSizeRet > n)
             blockSizeRet = n;

@@ -131,34 +131,8 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                 retShape = new int[] {1,1};
             }
 
-
             INDArray retArray = Nd4j.create(retShape);
-            List<CudaContext> contexts = new ArrayList<>();
-            List<Accumulation> results = new ArrayList<>();
-            for (int i = 0; i < op.x().tensorssAlongDimension(dimension); i++) {
-                Op op2 = op.opForDimension(i, dimension);
-                Accumulation op3 = (Accumulation) op2;
-                results.add(op3);
-                CudaContext ctx = invoke(op3, i * op.z().elementWiseStride(),retArray, false);
-                contexts.add(ctx);
-                //note here that we are only returning objects to the pool here we aren't actually
-                //getting rid of the contexts, this just makes synchronization easier.
-                //This also prevents blocking with the object pools.
-                //ctx.destroy();
-
-            }
-
-            CublasPointer pointer = contexts.get(0).getResultPointer();
-
-            for(CudaContext ctx : contexts)
-                ctx.destroy(pointer,false);
-            pointer.copyToHost();
-            try {
-                pointer.close();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-
+            invoke(op,0,op.x().tensorAlongDimension(0,dimension).length(),op.x().tensorssAlongDimension(dimension),retArray,true);
             return retArray;
         }
 
@@ -205,7 +179,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             invoke(t,true);
         } else if (op instanceof Accumulation) {
             Accumulation acc = (Accumulation) op;
-            invoke(acc,0,Nd4j.scalar(0),true);
+            invoke(acc,0,1,acc.x().length(),Nd4j.scalar(0),true);
         } else if (op instanceof ScalarOp) {
             ScalarOp sc = (ScalarOp) op;
             invoke(sc,true);
@@ -228,6 +202,25 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
     }
 
 
+    /**
+     * Gets the vector information for the gpu.
+     * Returns a 4 length array of:
+     * offset
+     * blas stride
+     * data buffer length
+     * element wise stride
+     * @param arr the array to get the data for
+     * @return
+     */
+    private int[] getVectorInfo(INDArray arr) {
+        int[] vectorInfo =new int[4];
+        vectorInfo[0] = arr.offset();
+        vectorInfo[1] =  BlasBufferUtil.getBlasStride(arr);
+        vectorInfo[2] = arr.data().length();
+        vectorInfo[3] = arr.elementWiseStride();
+        return vectorInfo;
+
+    }
 
     /**
      * Converts the given parameters
@@ -252,9 +245,11 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
     }
 
 
-    private CudaContext invoke(Accumulation op,int i,INDArray result,boolean sync)  {
+    private CudaContext invoke(Accumulation op,int i,int vectorsPerTensor,int numberOfElementsPerVector,INDArray result,boolean sync)  {
         checkOp(op);
         CudaContext ctx;
+
+        ContextHolder.getInstance().setContext();
 
         if(!KernelFunctionLoader.getInstance().exists(op.name()) || executionMode() == ExecutionMode.JAVA || op.isPassThrough())
             super.exec(op);
@@ -305,13 +300,45 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                 op.setX(op.x().dup());
             }
 
+            /**
+             * @param n n is the number of
+             *        elements to loop through
+             * @param dx the data to operate on
+             * @param xVectorInfo the meta data for the vector:
+             *                              0 is the offset
+             *                              1 is the increment/stride
+             *                              2 is the real length of the buffer (n and dx.length won't always be the same)
+             *                              3 is the element wise stride for the buffer
+             * @param extraInfo   extra information for the problem
+             * @param result      the result array
+             * @param resultInfo the information for the array
+             * @param gpuInformation
+             *                              0 is the block size
+             *                              1 is the grid size
+             *                              2 is the shared memory size
+             * @param problemDefinition
+             *                          0 is the number of elements per vector
+             *                          1 is the number of vectors
+             */
+
+            int[] vectorInfo = getVectorInfo(op.x());
+            int[] resultVectorInfo = getVectorInfo(result);
+            int[] gpuDef = metrics.getGpuDefinitionInfo();
+
+            //whole buffer, number of elements should be equal to length of x and the number of vectors should be 1
+            int[] problemDefintion = new int[2];
+            problemDefintion[0] = numberOfElementsPerVector;
+            problemDefintion[1] = vectorsPerTensor;
+
             Object[] kernelParams = new Object[] {
                     op.n(),
-                    op.x().offset(),
                     op.x(),
-                    BlasBufferUtil.getBlasStride(op.x()),
+                    KernelFunctions.alloc(vectorInfo),
                     toArgs(op.extraArgs(), getType(op)),
-                    result,i,metrics.getBlockSize()
+                    result,
+                    KernelFunctions.alloc(resultVectorInfo),
+                    KernelFunctions.alloc(gpuDef),
+                    KernelFunctions.alloc(problemDefintion)
             };
 
             try(KernelParamsWrapper kParams = new KernelParamsWrapper(op,sync,kernelParams).setResultOp(op, result)) {

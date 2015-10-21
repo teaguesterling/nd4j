@@ -53,6 +53,7 @@ public class CublasPointer  implements AutoCloseable {
     private boolean closed = false;
     private INDArray arr;
     private CudaContext cudaContext;
+    private boolean resultPointer = false;
 
 
     /**
@@ -61,6 +62,16 @@ public class CublasPointer  implements AutoCloseable {
      */
     @Override
     public void close() throws Exception {
+        if( !isResultPointer()) {
+            destroy();
+        }
+    }
+
+
+    /**
+     * The actual destroy method
+     */
+    public void destroy() {
         if(!closed) {
             if(arr != null)
                 buffer.freeDevicePointer(arr.offset(),arr.length());
@@ -69,6 +80,7 @@ public class CublasPointer  implements AutoCloseable {
             closed = true;
         }
     }
+
 
     /**
      *
@@ -111,16 +123,16 @@ public class CublasPointer  implements AutoCloseable {
         this.cudaContext = context;
         context.initOldStream();
         // Copy the data to the device
-      //  if(!buffer.copied(Thread.currentThread().getName()) && !buffer.dirty()) {
-            JCublas2.cublasSetVectorAsync(
-                    buffer.length()
-                    , buffer.getElementSize()
-                    , buffer.getHostPointer()
-                    , 1
-                    , devicePointer
-                    , 1
-                    , context.getOldStream());
-            buffer.setCopied(Thread.currentThread().getName());
+        //  if(!buffer.copied(Thread.currentThread().getName()) && !buffer.dirty()) {
+        JCublas2.cublasSetVectorAsync(
+                buffer.length()
+                , buffer.getElementSize()
+                , buffer.getHostPointer()
+                , 1
+                , devicePointer
+                , 1
+                , context.getOldStream());
+        buffer.setCopied(Thread.currentThread().getName());
 
         //}
     }
@@ -196,7 +208,31 @@ public class CublasPointer  implements AutoCloseable {
     }
 
 
+    /**
+     * Whether this is a result pointer or not
+     * A result pointer means that this
+     * pointer should not automatically be freed
+     * but instead wait for results to accumulate
+     * so they can be returned from
+     * the gpu first
+     * @return
+     */
+    public boolean isResultPointer() {
+        return resultPointer;
+    }
 
+    /**
+     * Sets whether this is a result pointer or not
+     * A result pointer means that this
+     * pointer should not automatically be freed
+     * but instead wait for results to accumulate
+     * so they can be returned from
+     * the gpu first
+     * @return
+     */
+    public void setResultPointer(boolean resultPointer) {
+        this.resultPointer = resultPointer;
+    }
 
     @Override
     public String toString() {

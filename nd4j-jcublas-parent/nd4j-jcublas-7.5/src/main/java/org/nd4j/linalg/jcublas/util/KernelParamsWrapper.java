@@ -104,7 +104,7 @@ public class KernelParamsWrapper implements AutoCloseable {
      */
     public KernelParamsWrapper setResultArray(INDArray array) {
         CublasPointer resultPointer = arrayToPointer.get(array).iterator().next();
-
+        resultPointer.setResultPointer(true);
         if(resultPointer == null) {
             throw new RuntimeException("Results array must be supplied as a kernel parameter");
         }
@@ -151,7 +151,7 @@ public class KernelParamsWrapper implements AutoCloseable {
         arrayToPointer = ArrayListMultimap.create();
         pointersToFree = new ArrayList<>();
         resultPointers = new ArrayList<>();
-        context = new CudaContext();
+        context = new CudaContext(closeContext);
         context.initOldStream();
         context.initStream();
         this.closeContext = closeContext;
@@ -220,6 +220,8 @@ public class KernelParamsWrapper implements AutoCloseable {
      */
     private void setResultForOp(Op acc, CublasPointer devicePointer) {
         devicePointer.copyToHost();
+        //destroy the pointer after collecting result
+        devicePointer.destroy();
         if(acc instanceof Accumulation) {
             Accumulation acc2 = (Accumulation) acc;
             acc2.setCurrentResult(devicePointer.getBuffer().getDouble(0));

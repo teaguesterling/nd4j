@@ -20,9 +20,13 @@ public class OldStreamItemFactory extends BasePooledObjectFactory<cudaStream_t> 
 
     @Override
     public cudaStream_t create() throws Exception {
-        cudaStream_t  oldStream = new cudaStream_t();
-        JCuda.cudaStreamCreate(oldStream);
-        return oldStream;
+        try {
+            cudaStream_t oldStream = new cudaStream_t();
+            JCuda.cudaStreamCreate(oldStream);
+            return oldStream;
+        }catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

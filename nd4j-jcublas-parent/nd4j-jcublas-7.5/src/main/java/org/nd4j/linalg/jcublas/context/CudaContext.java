@@ -33,6 +33,13 @@ public class CudaContext implements AutoCloseable {
     private boolean streamFromPool = true;
     private boolean handleFromPool = true;
     private boolean oldStreamFromPool = true;
+    private boolean free = true;
+
+
+    public CudaContext(boolean free) {
+        this();
+        this.free = free;
+    }
 
 
     public CudaContext() {
@@ -66,6 +73,9 @@ public class CudaContext implements AutoCloseable {
         syncOldStream();
     }
 
+    public CublasPointer getResultPointer() {
+        return resultPointer;
+    }
 
     /**
      * Associates

@@ -8,7 +8,9 @@ import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
 /**
- * Created by agibsonccc on 10/8/15.
+ * Generates streams for the old api
+ *
+ * @author Adam Gibson
  */
 public class OldStreamPool extends GenericObjectPool<cudaStream_t> {
     public OldStreamPool(PooledObjectFactory<cudaStream_t> factory) {
@@ -22,6 +24,8 @@ public class OldStreamPool extends GenericObjectPool<cudaStream_t> {
     public OldStreamPool(PooledObjectFactory<cudaStream_t> factory, GenericObjectPoolConfig config, AbandonedConfig abandonedConfig) {
         super(factory, config, abandonedConfig);
     }
+
+
 
 
 }
