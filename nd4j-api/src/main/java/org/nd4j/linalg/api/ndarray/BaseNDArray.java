@@ -745,7 +745,7 @@ public abstract class BaseNDArray implements INDArray, Iterable {
             return ret2;
 
         int length = ArrayUtil.prod(tensorShape);
-        int tensorLength = ArrayUtil.prod(tensorShape);
+        int tensorLength = length;
         int offset = index * tensorLength / NDArrayMath.lengthPerSlice(ret2);
 
         if(sliceIdx == 0 && length == NDArrayMath.lengthPerSlice(ret2))
@@ -4078,7 +4078,6 @@ public abstract class BaseNDArray implements INDArray, Iterable {
      */
     @Override
     public INDArray permute(int...rearrange) {
-
         if (rearrange.length != shape.length)
             return dup();
 
@@ -4098,7 +4097,6 @@ public abstract class BaseNDArray implements INDArray, Iterable {
 
 
     protected void copyRealTo(INDArray arr) {
-
         INDArray flattened = linearView();
         INDArray arrLinear = arr.linearView();
         for (int i = 0; i < flattened.length(); i++) {

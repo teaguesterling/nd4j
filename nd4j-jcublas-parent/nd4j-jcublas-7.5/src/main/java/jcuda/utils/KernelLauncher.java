@@ -138,6 +138,8 @@ public class KernelLauncher {
 
 
 
+    public final static String FUNCTION_NAME = "transform";
+
 
     /**
      * The logger used in this class
@@ -425,7 +427,7 @@ public class KernelLauncher {
     public static KernelLauncher load(String functionName,String type,CUmodule module) {
         KernelLauncher kernelLauncher = new KernelLauncher();
         kernelLauncher.setModule(module);
-        kernelLauncher.initFunction(functionName + "_" + type);
+        kernelLauncher.initFunction(FUNCTION_NAME + "_" + type);
         return kernelLauncher;
     }
 
@@ -454,7 +456,7 @@ public class KernelLauncher {
             e.printStackTrace();
         }
 
-        kernelLauncher.initFunction(functionName + "_" + type);
+        kernelLauncher.initFunction(FUNCTION_NAME + "_" + type);
         return kernelLauncher;
     }
 
@@ -727,7 +729,7 @@ public class KernelLauncher {
         // Obtain the function from the module
         function = new CUfunction();
         String functionErrorString =
-                "Could not get function '"+functionName+"' from module. "+"\n"+
+                "Could not get function '" + functionName + "' from module ." +  " "+"\n"+
                         "Name in module might be mangled. Try adding the line "+"\n"+
                         "extern \"C\""+"\n"+
                         "before the function you want to call, or open the " +

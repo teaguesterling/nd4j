@@ -27,6 +27,7 @@ import jcuda.driver.CUdeviceptr;
 import org.nd4j.linalg.api.buffer.DataBuffer;
 import org.nd4j.linalg.api.complex.IComplexDouble;
 import org.nd4j.linalg.api.complex.IComplexFloat;
+import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.ScalarOp;
 
 import java.nio.ByteBuffer;
@@ -54,6 +55,28 @@ public class PointerUtil {
         return ret;
     }
 
+    /**
+     * Converts a raw int buffer of the layout:
+     * rank
+     * shape
+     * stride
+     * offset
+     *
+     * where shape and stride are both straight int pointers
+     */
+    public static int[] toShapeInfoBuffer(INDArray arr) {
+        int[] ret = new int[arr.rank() * 2 + 3];
+        ret[0]= arr.rank();
+        for(int i = 1; i < arr.rank(); i++) {
+            ret[i] = arr.size(i - 1);
+            ret[i + 1 + arr.rank()] = arr.stride(i - 1);
+        }
+
+        ret[ret.length - 2] = arr.offset();
+        ret[ret.length -1 ] = arr.elementWiseStride();
+        return ret;
+    }
+
 
     /**
      * Get the pointer for a single complex float
@@ -61,7 +84,7 @@ public class PointerUtil {
      * @return the pointer for the given complex number
      */
     public static Pointer getPointer(IComplexDouble x) {
-       return getPointer(cuDoubleComplex.cuCmplx(x.realComponent().doubleValue(),x.imaginaryComponent().doubleValue()));
+        return getPointer(cuDoubleComplex.cuCmplx(x.realComponent().doubleValue(),x.imaginaryComponent().doubleValue()));
     }
     /**
      * Get the pointer for a single complex float

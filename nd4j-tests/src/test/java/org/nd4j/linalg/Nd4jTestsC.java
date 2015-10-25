@@ -827,7 +827,7 @@ public  class Nd4jTestsC extends BaseNd4jTest {
     public void testSum() {
         INDArray n = Nd4j.create(Nd4j.linspace(1, 8, 8).data(), new int[]{2, 2, 2});
         INDArray test = Nd4j.create(new float[]{3, 7, 11, 15}, new int[]{2, 2});
-        INDArray sum = n.sum(n.shape().length - 1);
+        INDArray sum = n.sum(-1);
         assertEquals(test, sum);
 
     }
@@ -859,8 +859,8 @@ public  class Nd4jTestsC extends BaseNd4jTest {
 
 
         INDArray copy = Nd4j.zeros(7,5);
-        for( int i=0; i<7; i++ ){
-            for( int j=0; j<5; j++ ){
+        for( int i = 0; i < 7; i++ ){
+            for( int j = 0; j < 5; j++ ){
                 copy.putScalar(new int[]{i,j},tad.getDouble(i,j));
             }
         }
@@ -1602,8 +1602,8 @@ public  class Nd4jTestsC extends BaseNd4jTest {
     @Test
     public void testSums() {
         INDArray a = Nd4j.linspace(1, 4, 4).reshape(2, 2);
-        assertEquals(getFailureMessage(), Nd4j.create(new float[]{4, 6}), a.sum(0));
         assertEquals(getFailureMessage(),Nd4j.create(new float[]{3, 7}), a.sum(1));
+        assertEquals(getFailureMessage(), Nd4j.create(new float[]{4, 6}), a.sum(0));
         assertEquals(getFailureMessage(), 10, a.sumNumber().doubleValue(), 1e-1);
 
 

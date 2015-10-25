@@ -19,6 +19,7 @@
 
 package jcuda.jcublas.kernel;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
 import java.util.concurrent.CountDownLatch;
@@ -29,9 +30,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.commons.lang3.time.StopWatch;
 import org.junit.Test;
 import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.api.shape.Shape;
 import org.nd4j.linalg.factory.Nd4j;
+import org.nd4j.linalg.indexing.NDArrayIndex;
 import org.nd4j.linalg.jcublas.context.ContextHolder;
 import org.nd4j.linalg.ops.transforms.Transforms;
+
+import static org.junit.Assert.*;
 
 public class TestMatrixOperations {
 
@@ -48,6 +53,48 @@ public class TestMatrixOperations {
         INDArray mean2 = Nd4j.linspace(1, 5, 5);
         assertEquals(3,mean2.meanNumber().doubleValue(),1e-1);
     }
+
+    @Test
+    public void testSum2() {
+        INDArray test = Nd4j.create(new float[]{1, 2, 3, 4}, new int[]{2, 2});
+        INDArray sum = test.sum(1);
+        INDArray assertion = Nd4j.create(new float[]{3, 7});
+        assertEquals(assertion, sum);
+        INDArray sum0 = Nd4j.create(new double[]{4, 6});
+        assertEquals(sum0, test.sum(0));
+    }
+
+
+    @Test
+    public void testSum() {
+        INDArray n = Nd4j.create(Nd4j.linspace(1, 8, 8).data(), new int[]{2, 2, 2});
+        INDArray test = Nd4j.create(new float[]{3, 7, 11, 15}, new int[]{2, 2});
+        INDArray sum = n.sum(-1);
+        assertEquals(test, sum);
+        INDArray sumZero = n.sum(0);
+        INDArray assertion = Nd4j.create(new double[]{6,8,10,12},new int[]{2,2});
+        assertEquals(assertion,sumZero);
+        INDArray sumOne = n.sum(1);
+        INDArray assertionTwo = Nd4j.create(new double[]{4,6,12,14},new int[]{2,2});
+        assertEquals(assertionTwo,sumOne);
+    }
+
+
+
+
+    @Test
+    public void testArgMax() {
+        INDArray toArgMax = Nd4j.linspace(1,24,24).reshape(4, 3, 2);
+        System.out.println(toArgMax.tensorssAlongDimension(0));
+        int elementWise = toArgMax.tensorAlongDimension(0,0).elementWiseStride();
+       for(int i = 0; i < toArgMax.tensorssAlongDimension(0); i++) {
+           System.out.println(toArgMax.tensorAlongDimension(i,0));
+       }
+        INDArray tensor = toArgMax.tensorAlongDimension(0,0);
+        System.out.println(toArgMax.max(0));
+        System.out.println();
+    }
+
 
 
     @Test
@@ -77,7 +124,6 @@ public class TestMatrixOperations {
                             watch.start();
                             INDArray actual = array.dup().mmul(array).mmul(array).div(array).div(array);
                             watch.stop();
-                            System.out.println("MMUL took " + watch.getTime());
                             if(expected.equals(actual)) right++;
                         }
 
