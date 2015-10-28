@@ -1609,12 +1609,6 @@ public  class Nd4jTestsC extends BaseNd4jTest {
 
     }
 
-
-
-
-
-
-
     @Test
     public void testRSubi() {
         INDArray n2 = Nd4j.ones(2);

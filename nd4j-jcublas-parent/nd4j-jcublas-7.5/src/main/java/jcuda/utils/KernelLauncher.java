@@ -729,7 +729,7 @@ public class KernelLauncher {
         // Obtain the function from the module
         function = new CUfunction();
         String functionErrorString =
-                "Could not get function '" + functionName + "' from module ." +  " "+"\n"+
+                "Could not get function '" + functionName + "' from module " + functionName  +  " "+"\n"+
                         "Name in module might be mangled. Try adding the line "+"\n"+
                         "extern \"C\""+"\n"+
                         "before the function you want to call, or open the " +

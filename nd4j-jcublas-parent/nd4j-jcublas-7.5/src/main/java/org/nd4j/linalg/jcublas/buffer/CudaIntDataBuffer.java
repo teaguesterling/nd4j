@@ -149,6 +149,11 @@ public class CudaIntDataBuffer extends BaseCudaDataBuffer {
         }
     }
 
+    @Override
+    public int getElementSize() {
+        return Sizeof.INT;
+    }
+
     private void readObject(java.io.ObjectInputStream stream)
             throws java.io.IOException, ClassNotFoundException {
         stream.defaultReadObject();

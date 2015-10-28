@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.commons.lang3.time.StopWatch;
 import org.junit.Test;
 import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.api.ops.impl.transforms.comparison.Eps;
 import org.nd4j.linalg.api.shape.Shape;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.indexing.NDArrayIndex;
@@ -47,6 +48,41 @@ public class TestMatrixOperations {
         double dot = Nd4j.getBlasWrapper().dot(four,four);
         assertEquals(30,dot,1e-1);
     }
+
+
+
+    @Test
+    public void testSums() {
+        INDArray a = Nd4j.linspace(1, 4, 4).reshape(2, 2);
+        assertEquals(Nd4j.create(new float[]{3, 7}), a.sum(1));
+        assertEquals(Nd4j.create(new float[]{4, 6}), a.sum(0));
+        assertEquals( 10, a.sumNumber().doubleValue(), 1e-1);
+
+
+    }
+
+
+    @Test
+    public void testMeans() {
+        INDArray a = Nd4j.linspace(1, 4, 4).reshape(2, 2);
+        INDArray mean1 = a.mean(1);
+        assertEquals(Nd4j.create(new double[]{1.5, 3.5}), mean1);
+        assertEquals( Nd4j.create(new double[]{2, 3}), a.mean(0));
+        assertEquals(2.5, Nd4j.linspace(1, 4, 4).meanNumber().doubleValue(), 1e-1);
+        assertEquals(2.5, a.meanNumber().doubleValue(), 1e-1);
+
+    }
+
+
+
+    @Test
+    public void testEps() {
+        INDArray ones = Nd4j.ones(5);
+        INDArray eps = Nd4j.getExecutioner().exec(new Eps(ones, ones, ones, ones.length())).z();
+        double sum = eps.sumNumber().doubleValue();
+        assertEquals(5, sum, 1e-1);
+    }
+
 
     @Test
     public void testMean() {
@@ -68,13 +104,21 @@ public class TestMatrixOperations {
     @Test
     public void testSum() {
         INDArray n = Nd4j.create(Nd4j.linspace(1, 8, 8).data(), new int[]{2, 2, 2});
+        for(int i = 0; i < n.tensorssAlongDimension(-1); i++) {
+            System.out.println(n.tensorAlongDimension(i,-1));
+        }
+
         INDArray test = Nd4j.create(new float[]{3, 7, 11, 15}, new int[]{2, 2});
+
         INDArray sum = n.sum(-1);
         assertEquals(test, sum);
         INDArray sumZero = n.sum(0);
         INDArray assertion = Nd4j.create(new double[]{6,8,10,12},new int[]{2,2});
         assertEquals(assertion,sumZero);
         INDArray sumOne = n.sum(1);
+        for(int i = 0; i < n.tensorssAlongDimension(1); i++) {
+            System.out.println(n.tensorAlongDimension(i,1));
+        }
         INDArray assertionTwo = Nd4j.create(new double[]{4,6,12,14},new int[]{2,2});
         assertEquals(assertionTwo,sumOne);
     }

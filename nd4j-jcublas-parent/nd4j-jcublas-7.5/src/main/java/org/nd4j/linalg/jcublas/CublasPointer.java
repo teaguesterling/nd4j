@@ -261,6 +261,18 @@ public class CublasPointer  implements AutoCloseable {
                             , cudaContext.getOldStream());
                     sb.append(Arrays.toString(set));
                 }
+                else if(buffer.dataType() == DataBuffer.Type.INT) {
+                    int[] set = new int[buffer.length()];
+                    JCublas2.cublasGetVectorAsync(
+                            buffer.length()
+                            , buffer.getElementSize()
+                            , devicePointer
+                            , 1
+                            , Pointer.to(set)
+                            , 1
+                            , cudaContext.getOldStream());
+                    sb.append(Arrays.toString(set));
+                }
                 else {
                     float[] set = new float[buffer.length()];
                     JCublas2.cublasGetVectorAsync(
@@ -299,6 +311,18 @@ public class CublasPointer  implements AutoCloseable {
             cudaContext.syncOldStream();
             sb.append(Arrays.toString(set));
         }
+        else if(arr.data().dataType() == DataBuffer.Type.INT) {
+            int[] set = new int[length];
+            JCublas2.cublasGetVectorAsync(
+                    length
+                    , buffer.getElementSize()
+                    , devicePointer
+                    , BlasBufferUtil.getBlasStride(arr)
+                    , Pointer.to(set)
+                    , 1, cudaContext.getOldStream());
+            ContextHolder.syncStream();
+            sb.append(Arrays.toString(set));
+        }
         else {
             float[] set = new float[length];
             JCublas2.cublasGetVectorAsync(
@@ -317,6 +341,19 @@ public class CublasPointer  implements AutoCloseable {
         int length = arr instanceof  IComplexNDArray ? arr.length() * 2 : arr.length();
         if(arr.data().dataType() == DataBuffer.Type.DOUBLE) {
             double[] set = new double[length];
+            JCublas2.cublasGetVectorAsync(
+                    length
+                    , buffer.getElementSize()
+                    ,devicePointer
+                    ,1
+                    ,Pointer.to(set)
+                    ,1
+                    , cudaContext.getOldStream());
+            cudaContext.syncOldStream();
+            sb.append(Arrays.toString(set));
+        }
+        else if(arr.data().dataType() == DataBuffer.Type.INT) {
+            int[] set = new int[length];
             JCublas2.cublasGetVectorAsync(
                     length
                     , buffer.getElementSize()

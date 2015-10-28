@@ -720,12 +720,22 @@ public abstract class BaseNDArray implements INDArray, Iterable {
 
     @Override
     public int tensorssAlongDimension(int... dimension) {
+        for(int i = 0; i < dimension.length; i++) {
+            if(dimension[i] < 0)
+                dimension[i] += rank();
+        }
+
         int[] tensorShape = ArrayUtil.keep(shape(), dimension);
         return length / ArrayUtil.prod(tensorShape);
     }
 
     @Override
     public INDArray tensorAlongDimension(int index, int... dimension) {
+        for(int i = 0; i < dimension.length; i++) {
+            if(dimension[i] < 0)
+                dimension[i] += rank();
+        }
+
         if(dimension.length == 1 && isColumnVector() && dimension[0] == 0 || isRowVector() && isRowVector() && dimension[0] == 1) {
             return this;
         }
@@ -1060,7 +1070,7 @@ public abstract class BaseNDArray implements INDArray, Iterable {
         }
 
         else if(ordering() == arr.ordering() && arr.elementWiseStride() > 0 && elementWiseStride() > 0) {
-           data().copyAtStride(arr.data(),arr.length(),elementWiseStride(),arr.elementWiseStride(),offset(),arr.offset());
+            data().copyAtStride(arr.data(),arr.length(),elementWiseStride(),arr.elementWiseStride(),offset(),arr.offset());
         }
 
         else if(Arrays.equals(this.shape(),arr.shape())) {

@@ -34,6 +34,7 @@ import org.nd4j.linalg.indexing.NDArrayIndex;
 import org.nd4j.linalg.jcublas.CublasPointer;
 import org.nd4j.linalg.jcublas.buffer.JCudaBuffer;
 import org.nd4j.linalg.jcublas.context.CudaContext;
+import org.nd4j.linalg.jcublas.kernel.KernelFunctions;
 import org.nd4j.linalg.util.ComplexUtil;
 import org.nd4j.linalg.api.shape.Shape;
 
@@ -63,6 +64,26 @@ public class CublasPointerTests {
             assertEquals(assertion[i], data[i], 1e-1f);
         }
         ctx.destroy();
+    }
+
+
+    @Test
+    public void testAllocInt() {
+        JCudaBuffer intBuffer = KernelFunctions.alloc(new int[]{1,2,3,4,5,6});
+        assertEquals(6,intBuffer.length());
+        for(int i = 0; i  < intBuffer.length(); i++) {
+            assertEquals(i + 1,intBuffer.getInt(i));
+        }
+
+        CudaContext ctx = new CudaContext();
+        ctx.initOldStream();
+        CublasPointer pointer = new CublasPointer(intBuffer,ctx);
+        pointer.copyToHost();
+        for(int i = 0; i  < intBuffer.length(); i++) {
+            assertEquals(i + 1,intBuffer.getInt(i));
+        }
+
+
     }
 
     @Test

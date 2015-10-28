@@ -55,6 +55,34 @@ public class PointerUtil {
         return ret;
     }
 
+
+    /**
+     * Converts a raw int buffer of the layout:
+     * rank
+     * shape
+     * stride
+     * offset
+     *
+     * where shape and stride are both straight int pointers
+     */
+    public static int[] toShapeInfoBuffer(INDArray arr,int...dimension) {
+        if(dimension == null)
+            return toShapeInfoBuffer(arr);
+        int[] ret = new int[arr.rank() * 2 + 3];
+        ret[0]= arr.rank();
+        int count = 1;
+        for(int i = 0; i < arr.rank(); i++) {
+            ret[count++] = arr.size(i);
+        }
+        for(int i = 0; i < arr.rank(); i++) {
+            ret[count++] = arr.stride(i);
+        }
+
+        ret[ret.length - 2] = arr.offset();
+        ret[ret.length -1 ] = arr.tensorAlongDimension(0,dimension).elementWiseStride();
+        return ret;
+    }
+
     /**
      * Converts a raw int buffer of the layout:
      * rank
@@ -67,13 +95,16 @@ public class PointerUtil {
     public static int[] toShapeInfoBuffer(INDArray arr) {
         int[] ret = new int[arr.rank() * 2 + 3];
         ret[0]= arr.rank();
-        for(int i = 1; i < arr.rank(); i++) {
-            ret[i] = arr.size(i - 1);
-            ret[i + 1 + arr.rank()] = arr.stride(i - 1);
+        int count = 1;
+        for(int i = 0; i < arr.rank(); i++) {
+            ret[count++] = arr.size(i);
+        }
+        for(int i = 0; i < arr.rank(); i++) {
+            ret[count++] = arr.stride(i);
         }
 
         ret[ret.length - 2] = arr.offset();
-        ret[ret.length -1 ] = arr.elementWiseStride();
+        ret[ret.length -1] = arr.elementWiseStride();
         return ret;
     }
 

@@ -21,6 +21,7 @@ package org.nd4j.linalg.jcublas.ops.executioner;
 
 
 import com.google.common.primitives.Ints;
+import jcuda.runtime.JCuda;
 import org.nd4j.linalg.api.blas.BlasBufferUtil;
 import org.nd4j.linalg.api.buffer.DataBuffer;
 import org.nd4j.linalg.api.complex.IComplexNDArray;
@@ -208,51 +209,6 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
 
 
     /**
-     * Gets the vector information for the gpu.
-     * Returns a 4 length array of:
-     * offset
-     * blas stride
-     * data buffer length
-     * element wise stride
-     * vector stride (the stride to the next row/column/tensor)
-     * @param arr the array to get the data for
-     * @return
-     */
-    private int[] getVectorInfo(INDArray arr,int[] dimension) {
-        int[] vectorInfo = new int[5];
-
-        if(dimension != null) {
-            INDArray tad = arr.tensorAlongDimension(1,dimension);
-            vectorInfo[0] = arr.offset();
-            vectorInfo[1] =  BlasBufferUtil.getBlasStride(tad);
-            vectorInfo[2] = arr.data().length();
-            vectorInfo[3] = tad.elementWiseStride();
-            if(arr.isMatrix()) {
-                if(dimension[0] == 1) {
-                    vectorInfo[4] = arr.stride(0);
-                }
-                else {
-                    vectorInfo[4] = arr.stride(-1);
-                }
-            }
-
-            else {
-                vectorInfo[4] = (tad.offset() / tad.stride(0)) * tad.elementWiseStride();
-            }
-        }
-        else {
-            vectorInfo[0] = arr.offset();
-            vectorInfo[1] =  BlasBufferUtil.getBlasStride(arr);
-            vectorInfo[2] = arr.data().length();
-            vectorInfo[3] = arr.elementWiseStride();
-            vectorInfo[4] = arr.stride(0);
-        }
-
-        return vectorInfo;
-
-    }
-
-    /**
      * Converts the given parameters
      * in to extra arguments to
      * pass to the kernel
@@ -287,6 +243,17 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
 
         String functionName = op instanceof TransformOp || op instanceof Accumulation ? op.name() + "_strided" : op.name();
         GpuMetrics metrics = GpuMetrics.blocksAndThreadsOccupancy(functionName,getType(op),op.n());
+        if(dimension != null) {
+            metrics.setBlockSize(op.x().tensorAlongDimension(0,dimension).length());
+            metrics.setGridSize(op.x().tensorssAlongDimension(dimension));
+            int sharedMemBasedOnBlockSize = metrics.getBlockSize() * op.x().data().getElementSize();
+            if(sharedMemBasedOnBlockSize < 32)
+                sharedMemBasedOnBlockSize = 64 * op.x().data().getElementSize();
+            metrics.setSharedMemory(sharedMemBasedOnBlockSize);
+        }
+
+
+
 
         if (op.y() != null) {
             int xStride = BlasBufferUtil.getBlasStride(dimension == null ? op.x() : op.x().tensorAlongDimension(0,dimension));
@@ -304,15 +271,16 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             Object[] kernelParams = new Object[] {
                     op.n(),
                     op.x(),
-                    KernelFunctions.alloc(PointerUtil.toShapeInfoBuffer(op.x())),
+                    KernelFunctions.alloc(PointerUtil.toShapeInfoBuffer(op.x(),dimension)),
                     op.y(),
-                    KernelFunctions.alloc(PointerUtil.toShapeInfoBuffer(op.y())),
-                    toArgs(op.extraArgs(), getType(op)),
+                    KernelFunctions.alloc(PointerUtil.toShapeInfoBuffer(op.y(),dimension)),
+                    toArgs(op.extraArgs(),
+                            getType(op)),
                     result,
                     KernelFunctions.alloc(PointerUtil.toShapeInfoBuffer(result)),
                     KernelFunctions.alloc(metrics.getGpuDefinitionInfo()),
-                    KernelFunctions.alloc(dimension),
-                    dimension.length
+                    KernelFunctions.alloc(dimension == null ? new int[] {1} : dimension),
+                    dimension == null ? 1 : dimension.length
             };
 
             try(KernelParamsWrapper kParams = new KernelParamsWrapper(op,sync,kernelParams).setResultOp(op, result)) {
@@ -329,7 +297,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
 
 
         } else {
-            int xStride = BlasBufferUtil.getBlasStride(op.x());
+            int xStride = BlasBufferUtil.getBlasStride(dimension == null ? op.x() : op.x().tensorAlongDimension(0,dimension));
             if(xStride < 0) {
                 op.setX(op.x().dup());
             }
@@ -338,14 +306,16 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             Object[] kernelParams = new Object[] {
                     op.n(),
                     op.x(),
-                    KernelFunctions.alloc(PointerUtil.toShapeInfoBuffer(op.x())),
+                    KernelFunctions.alloc(PointerUtil.toShapeInfoBuffer(op.x(),dimension)),
                     toArgs(op.extraArgs(), getType(op)),
                     result,
                     KernelFunctions.alloc(PointerUtil.toShapeInfoBuffer(result)),
                     KernelFunctions.alloc(metrics.getGpuDefinitionInfo()),
-                    KernelFunctions.alloc(dimension),
-                    dimension.length
+                    KernelFunctions.alloc(dimension == null ? new int[] {1} : dimension),
+                    dimension == null ? 1 : dimension.length
             };
+
+
 
             try(KernelParamsWrapper kParams = new KernelParamsWrapper(op,sync,kernelParams).setResultOp(op, result)) {
                 invokeFunction(op, sync,metrics,kParams.getContext(), kParams.getKernelParameters());
@@ -536,6 +506,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
          * Functions that are accumulations or transforms have names that end with _strided.
          *
          */
+
         String functionName = op instanceof TransformOp || op instanceof Accumulation ? op.name() + "_strided" : op.name();
         //force blocks and threads to be even
         KernelFunctions.invoke(

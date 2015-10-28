@@ -584,13 +584,14 @@ public abstract class BaseDataBuffer implements DataBuffer {
             return dataBuffer.getFloat(i * getElementSize());
         }
 
-        if(dataType() == Type.INT) {
+        else if(dataType() == Type.INT) {
             dirty.set(false);
             return dataBuffer.getInt(i * getElementSize());
         }
-
-        dirty.set(false);
-        return dataBuffer.getDouble(i * getElementSize());
+        else {
+            dirty.set(false);
+            return dataBuffer.getDouble(i * getElementSize());
+        }
     }
 
     @Override
