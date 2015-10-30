@@ -20,8 +20,6 @@
 package org.nd4j.linalg.jcublas.ops.executioner;
 
 
-import com.google.common.primitives.Ints;
-import jcuda.runtime.JCuda;
 import org.nd4j.linalg.api.blas.BlasBufferUtil;
 import org.nd4j.linalg.api.buffer.DataBuffer;
 import org.nd4j.linalg.api.complex.IComplexNDArray;
@@ -33,7 +31,6 @@ import org.nd4j.linalg.api.ops.ScalarOp;
 import org.nd4j.linalg.api.ops.TransformOp;
 import org.nd4j.linalg.api.ops.executioner.DefaultOpExecutioner;
 import org.nd4j.linalg.factory.Nd4j;
-import org.nd4j.linalg.jcublas.CublasPointer;
 import org.nd4j.linalg.jcublas.SimpleJCublas;
 import org.nd4j.linalg.jcublas.buffer.JCudaBuffer;
 import org.nd4j.linalg.jcublas.context.ContextHolder;
@@ -45,8 +42,7 @@ import org.nd4j.linalg.jcublas.util.KernelParamsWrapper;
 import org.nd4j.linalg.jcublas.util.PointerUtil;
 import org.nd4j.linalg.util.ArrayUtil;
 
-import java.util.ArrayList;
-import java.util.List;
+
 
 
 /**
@@ -241,8 +237,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             super.exec(op);
 
 
-        String functionName = op instanceof TransformOp || op instanceof Accumulation ? op.name() + "_strided" : op.name();
-        GpuMetrics metrics = GpuMetrics.blocksAndThreadsOccupancy(functionName,getType(op),op.n());
+        GpuMetrics metrics = GpuMetrics.blockAndThreads(getType(op),op.n());
         if(dimension != null) {
             metrics.setBlockSize(op.x().tensorAlongDimension(0,dimension).length());
             metrics.setGridSize(op.x().tensorssAlongDimension(dimension));
@@ -252,6 +247,11 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             metrics.setSharedMemory(sharedMemBasedOnBlockSize);
         }
 
+        else {
+            metrics.setGridSize(op.x().data().length());
+            metrics.setBlockSize(1024);
+            metrics.setSharedMemory(metrics.getBlockSize() * op.x().data().getElementSize());
+        }
 
 
 
@@ -264,6 +264,9 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             int yStride = BlasBufferUtil.getBlasStride(dimension == null ? op.y() : op.y().tensorAlongDimension(0,dimension));
             if(yStride < 0) {
                 op.setY(op.y().dup());
+            }
+            else if(op.y().ordering() != op.x().ordering()) {
+                op.setY(op.y().dup(op.x().ordering()));
             }
 
 
@@ -302,9 +305,12 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                 op.setX(op.x().dup());
             }
 
+            int length = op.x().data().length();
+            if(dimension == null && xStride == 1 && op.x().offset() == 0)
+                length = op.n();
 
             Object[] kernelParams = new Object[] {
-                    op.n(),
+                    length,
                     op.x(),
                     KernelFunctions.alloc(PointerUtil.toShapeInfoBuffer(op.x(),dimension)),
                     toArgs(op.extraArgs(), getType(op)),
@@ -337,10 +343,11 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
 
     private CudaContext invoke(ScalarOp op,boolean sync) {
         checkOp(op);
-        String functionName = op instanceof TransformOp || op instanceof Accumulation ? op.name() + "_strided" : op.name();
 
-        GpuMetrics metrics = GpuMetrics.blocksAndThreadsOccupancy(functionName, getType(op), op.n());
-
+        GpuMetrics metrics = GpuMetrics.blockAndThreads(getType(op),op.n());
+        metrics.setGridSize(op.n());
+        metrics.setBlockSize(1024);
+        metrics.setSharedMemory(metrics.getBlockSize() * op.x().data().getElementSize());
 
         CudaContext ctx = null;
         if(!KernelFunctionLoader.getInstance().exists(op.name())  || executionMode() == ExecutionMode.JAVA)
@@ -425,8 +432,10 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             return null;
         }
 
-        String functionName = op instanceof TransformOp || op instanceof Accumulation ? op.name() + "_strided" : op.name();
-        GpuMetrics metrics = GpuMetrics.blocksAndThreadsOccupancy(functionName, getType(op), op.n());
+        GpuMetrics metrics = GpuMetrics.blockAndThreads(getType(op),op.n());
+        metrics.setGridSize(op.n());
+        metrics.setBlockSize(1024);
+        metrics.setSharedMemory(metrics.getBlockSize() * op.x().data().getElementSize());
 
         CudaContext ctx;
         if (op.y() != null) {
@@ -439,6 +448,9 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             if(yStride < 0) {
                 op.setY(op.y().dup());
             }
+            else if(op.y().ordering() != op.x().ordering()) {
+                op.setY(op.y().dup(op.x().ordering()));
+            }
 
             /**
              * Construct pointer arguments in the following order:
@@ -450,7 +462,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
              * result
              */
 
-            Object[] kernelParams = new Object[]{
+            Object[] kernelParams = new Object[] {
                     op.n(),
                     op.x().offset(),
                     op.y().offset(),

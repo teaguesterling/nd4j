@@ -22,6 +22,7 @@ package org.nd4j.linalg.jcublas.context;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 import jcuda.CudaException;
+import jcuda.Pointer;
 import jcuda.driver.*;
 import jcuda.jcublas.JCublas2;
 import jcuda.jcublas.cublasHandle;
@@ -115,11 +116,15 @@ public class ContextHolder {
             GenericObjectPoolConfig oldStreamConf = streamConf.clone();
             oldStreamConf.setJmxNameBase("oldstream");
             oldStreamPool = new OldStreamPool(new OldStreamItemFactory(),oldStreamConf);
-           //seed with multiple streams to encourage parallelism
+            //seed with multiple streams to encourage parallelism
             for(int i = 0; i < Runtime.getRuntime().availableProcessors(); i++) {
                 streamPool.addObject();
                 oldStreamPool.addObject();
             }
+
+
+            //force context initialization to occur
+            JCuda.cudaFree(Pointer.to(new int[]{0}));
 
         }catch(Exception e) {
             log.warn("Unable to initialize cuda",e);
@@ -339,6 +344,7 @@ public class ContextHolder {
 
 
     public void setContext() {
+        JCuda.cudaSetDevice(getInstance().getDeviceForThread());
         JCudaDriver.cuCtxSetCurrent(getInstance().getContext());
     }
 

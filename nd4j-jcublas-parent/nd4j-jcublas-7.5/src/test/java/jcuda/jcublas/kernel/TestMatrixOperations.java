@@ -28,7 +28,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang3.time.StopWatch;
+import org.junit.Ignore;
 import org.junit.Test;
+import org.nd4j.linalg.api.buffer.DataBuffer;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.impl.transforms.comparison.Eps;
 import org.nd4j.linalg.api.shape.Shape;
@@ -36,6 +38,7 @@ import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.indexing.NDArrayIndex;
 import org.nd4j.linalg.jcublas.context.ContextHolder;
 import org.nd4j.linalg.ops.transforms.Transforms;
+import org.nd4j.linalg.util.ArrayUtil;
 
 import static org.junit.Assert.*;
 
@@ -131,9 +134,9 @@ public class TestMatrixOperations {
         INDArray toArgMax = Nd4j.linspace(1,24,24).reshape(4, 3, 2);
         System.out.println(toArgMax.tensorssAlongDimension(0));
         int elementWise = toArgMax.tensorAlongDimension(0,0).elementWiseStride();
-       for(int i = 0; i < toArgMax.tensorssAlongDimension(0); i++) {
-           System.out.println(toArgMax.tensorAlongDimension(i,0));
-       }
+        for(int i = 0; i < toArgMax.tensorssAlongDimension(0); i++) {
+            System.out.println(toArgMax.tensorAlongDimension(i,0));
+        }
         INDArray tensor = toArgMax.tensorAlongDimension(0,0);
         System.out.println(toArgMax.max(0));
         System.out.println();
@@ -145,6 +148,81 @@ public class TestMatrixOperations {
     public void testElementWiseOp() {
         Transforms.sigmoid(Nd4j.ones(5,5));
     }
+
+
+
+    @Test
+    public void testTensorAlongDimension() {
+        int[] shape = new int[]{4,5,7};
+        int length = ArrayUtil.prod(shape);
+        INDArray arr = Nd4j.linspace(1, length, length).reshape(shape);
+
+
+        int[] dim0s = {0,1,2,0,1,2};
+        int[] dim1s = {1,0,0,2,2,1};
+
+        double[] sums = {1350.,  1350.,  1582,  1582,  630,  630};
+
+        for( int i = 0; i < dim0s.length; i++) {
+            int firstDim = dim0s[i];
+            int secondDim = dim1s[i];
+            INDArray tad = arr.tensorAlongDimension(0, firstDim, secondDim);
+            assertEquals("I " + i + " failed ",sums[i],tad.sumNumber().doubleValue(),1e-1);
+        }
+    }
+
+
+    @Test
+    public void testNorm2Double() {
+        Nd4j.dtype = DataBuffer.Type.DOUBLE;
+        INDArray n = Nd4j.create(new double[]{1, 2, 3, 4});
+        double assertion = 5.47722557505;
+        double norm3 = n.norm2Number().doubleValue();
+        assertEquals(assertion, norm3, 1e-1);
+
+        INDArray row = Nd4j.create(new double[]{1, 2, 3, 4}, new int[]{2, 2});
+        INDArray row1 = row.getRow(1);
+        double norm2 = row1.norm2Number().doubleValue();
+        double assertion2 = 5.0f;
+        assertEquals(assertion2, norm2, 1e-1);
+
+    }
+
+
+    @Test
+    public void testNorm2() {
+        INDArray n = Nd4j.create(new float[]{1, 2, 3, 4});
+        float assertion = 5.47722557505f;
+        float norm3 = n.norm2Number().floatValue();
+        assertEquals(assertion, norm3, 1e-1);
+
+
+        INDArray row = Nd4j.create(new float[]{1, 2, 3, 4}, new int[]{2, 2});
+        INDArray row1 = row.getRow(1);
+        float norm2 = row1.norm2Number().floatValue();
+        float assertion2 = 5.0f;
+        assertEquals(assertion2, norm2, 1e-1);
+    }
+
+
+
+
+    @Test
+    public void testCosineSim() {
+        Nd4j.dtype = DataBuffer.Type.FLOAT;
+
+        INDArray vec1 = Nd4j.create(new double[]{1, 2, 3, 4});
+        INDArray vec2 = Nd4j.create(new double[]{1, 2, 3, 4});
+        double sim = Transforms.cosineSim(vec1, vec2);
+        assertEquals(1, sim, 1e-1);
+
+        INDArray vec3 = Nd4j.create(new float[]{0.2f, 0.3f, 0.4f, 0.5f});
+        INDArray vec4 = Nd4j.create(new float[]{0.6f, 0.7f, 0.8f, 0.9f});
+        sim = Transforms.cosineSim(vec3, vec4);
+        assertEquals(0.98, sim, 1e-1);
+
+    }
+
 
     @Test
     public void testMultipleThreads() throws InterruptedException {

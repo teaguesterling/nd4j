@@ -195,7 +195,7 @@ public class KernelParamsWrapper implements AutoCloseable {
                 //since this ends up being a scalar
                 if(closeContext) {
                     if(cublasPointer.getBuffer().length() == 1) {
-                        setResultForOp( resultOp, cublasPointer);
+                        setResultForOp(resultOp, cublasPointer);
                     }
                     else
                         cublasPointer.copyToHost();

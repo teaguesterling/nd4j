@@ -62,13 +62,19 @@ public class PointerUtil {
      * shape
      * stride
      * offset
-     *
+     * element wise stride
+     * ordering
      * where shape and stride are both straight int pointers
+     *
+     * Of note here is that offset will be zero automatically
+     * because the offset is handled by the
+     * pointer object instead
+     *
      */
     public static int[] toShapeInfoBuffer(INDArray arr,int...dimension) {
         if(dimension == null)
             return toShapeInfoBuffer(arr);
-        int[] ret = new int[arr.rank() * 2 + 3];
+        int[] ret = new int[arr.rank() * 2 + 4];
         ret[0]= arr.rank();
         int count = 1;
         for(int i = 0; i < arr.rank(); i++) {
@@ -78,8 +84,11 @@ public class PointerUtil {
             ret[count++] = arr.stride(i);
         }
 
-        ret[ret.length - 2] = arr.offset();
-        ret[ret.length -1 ] = arr.tensorAlongDimension(0,dimension).elementWiseStride();
+        //note here we do offset of zero due to the offset
+        //already being handled by the cuda device pointer
+        ret[ret.length - 3] = 0;
+        ret[ret.length -2] = arr.tensorAlongDimension(0,dimension).elementWiseStride();
+        ret[ret.length - 1] = arr.ordering();
         return ret;
     }
 
@@ -89,11 +98,17 @@ public class PointerUtil {
      * shape
      * stride
      * offset
-     *
+     * element wise stride
+     * ordering
      * where shape and stride are both straight int pointers
+     *
+     *  Of note here is that offset will be zero automatically
+     * because the offset is handled by the
+     * pointer object instead
+     *
      */
     public static int[] toShapeInfoBuffer(INDArray arr) {
-        int[] ret = new int[arr.rank() * 2 + 3];
+        int[] ret = new int[arr.rank() * 2 + 4];
         ret[0]= arr.rank();
         int count = 1;
         for(int i = 0; i < arr.rank(); i++) {
@@ -103,8 +118,11 @@ public class PointerUtil {
             ret[count++] = arr.stride(i);
         }
 
-        ret[ret.length - 2] = arr.offset();
-        ret[ret.length -1] = arr.elementWiseStride();
+        //note here we do offset of zero due to the offset
+        //already being handled by the cuda device pointer
+        ret[ret.length - 3] = 0;
+        ret[ret.length -2] = arr.elementWiseStride();
+        ret[ret.length - 1] = arr.ordering();
         return ret;
     }
 
