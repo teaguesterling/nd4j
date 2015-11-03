@@ -22,11 +22,13 @@ package jcuda.jcublas.kernel;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
+import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import jcuda.runtime.JCuda;
 import org.apache.commons.lang3.time.StopWatch;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -57,8 +59,12 @@ public class TestMatrixOperations {
     @Test
     public void testSums() {
         INDArray a = Nd4j.linspace(1, 4, 4).reshape(2, 2);
+        INDArray tad = a.tensorAlongDimension(1,0);
+        INDArray tadOne = a.tensorAlongDimension(1,1);
+        int ele = tad.elementWiseStride();
+        int otherEle = tadOne.elementWiseStride();
+        //assertEquals(Nd4j.create(new float[]{4, 6}), a.sum(0));
         assertEquals(Nd4j.create(new float[]{3, 7}), a.sum(1));
-        assertEquals(Nd4j.create(new float[]{4, 6}), a.sum(0));
         assertEquals( 10, a.sumNumber().doubleValue(), 1e-1);
 
 
@@ -74,6 +80,36 @@ public class TestMatrixOperations {
         assertEquals(2.5, Nd4j.linspace(1, 4, 4).meanNumber().doubleValue(), 1e-1);
         assertEquals(2.5, a.meanNumber().doubleValue(), 1e-1);
 
+    }
+
+    @Test
+    public void testTad() {
+        INDArray arr = Nd4j.ones(2,10,10,10,10);
+        for(int i = 0; i < 5; i++) {
+            System.out.println(arr.tensorAlongDimension(i,1).offset());
+        }
+    }
+
+    @Test
+    public void testSumWithRow2(){
+        //All sums in this method execute without exceptions.
+        INDArray array3d = Nd4j.ones(2,10,10);
+        array3d.sum(0);
+        array3d.sum(1);
+        array3d.sum(2);
+
+        INDArray array4d = Nd4j.ones(2, 10, 10, 10);
+        array4d.sum(0);
+        array4d.sum(1);
+        array4d.sum(2);
+        array4d.sum(3);
+
+        INDArray array5d = Nd4j.ones(2, 10, 10, 10, 10);
+        array5d.sum(0);
+        array5d.sum(1);
+        array5d.sum(2);
+        array5d.sum(3);
+        array5d.sum(4);
     }
 
 
@@ -96,6 +132,9 @@ public class TestMatrixOperations {
     @Test
     public void testSum2() {
         INDArray test = Nd4j.create(new float[]{1, 2, 3, 4}, new int[]{2, 2});
+        for(int i = 0; i < test.tensorssAlongDimension(1); i++) {
+            System.out.println(test.tensorAlongDimension(i,1).offset());
+        }
         INDArray sum = test.sum(1);
         INDArray assertion = Nd4j.create(new float[]{3, 7});
         assertEquals(assertion, sum);
@@ -222,6 +261,33 @@ public class TestMatrixOperations {
         assertEquals(0.98, sim, 1e-1);
 
     }
+
+    @Test
+    public void testSumWithRow1(){
+        //Works:
+        INDArray array2d = Nd4j.ones(1,10);
+        array2d.sum(0); //OK
+        array2d.sum(1); //OK
+
+        INDArray array3d = Nd4j.ones(1,10,10);
+        array3d.sum(0); //OK
+        array3d.sum(1); //OK
+        array3d.sum(2); //java.lang.IllegalArgumentException: Illegal index 100 derived from 9 with offset of 10 and stride of 10
+
+        INDArray array4d = Nd4j.ones(1,10,10,10);
+        array4d.sum(0); //OK
+        array4d.sum(1); //OK
+        array4d.sum(2); //java.lang.IllegalArgumentException: Illegal index 1000 derived from 9 with offset of 910 and stride of 10
+        array4d.sum(3); //java.lang.IllegalArgumentException: Illegal index 1000 derived from 9 with offset of 100 and stride of 100
+
+        INDArray array5d = Nd4j.ones(1, 10, 10, 10, 10);
+        array5d.sum(0); //OK
+        array5d.sum(1); //OK
+        array5d.sum(2); //java.lang.IllegalArgumentException: Illegal index 10000 derived from 9 with offset of 9910 and stride of 10
+        array5d.sum(3); //java.lang.IllegalArgumentException: Illegal index 10000 derived from 9 with offset of 9100 and stride of 100
+        array5d.sum(4); //java.lang.IllegalArgumentException: Illegal index 10000 derived from 9 with offset of 1000 and stride of 1000
+    }
+
 
 
     @Test

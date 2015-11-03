@@ -133,6 +133,10 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
                 retShape = new int[] {1,1};
             }
 
+            //nothing to reduce
+            if(ArrayUtil.prod(retShape) == op.x().length())
+                return op.x();
+
             INDArray retArray = Nd4j.create(retShape);
             invoke(op,dimension,retArray,true);
             return retArray;
@@ -239,23 +243,25 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
 
         GpuMetrics metrics = GpuMetrics.blockAndThreads(getType(op),op.n());
         if(dimension != null) {
-            metrics.setBlockSize(op.x().tensorAlongDimension(0,dimension).length());
+            int length = op.x().tensorAlongDimension(0,dimension).length();
+            metrics.setBlockSize(length);
             metrics.setGridSize(op.x().tensorssAlongDimension(dimension));
-            int sharedMemBasedOnBlockSize = metrics.getBlockSize() * op.x().data().getElementSize();
-            if(sharedMemBasedOnBlockSize < 32)
-                sharedMemBasedOnBlockSize = 64 * op.x().data().getElementSize();
-            metrics.setSharedMemory(sharedMemBasedOnBlockSize);
+            int sharedMemBasedOnBlockSize = op.x().tensorAlongDimension(0,dimension).length() * 10 *  op.x().data().getElementSize();
+            if(sharedMemBasedOnBlockSize < 1024)
+                sharedMemBasedOnBlockSize = 1024;
+            metrics.setSharedMemoryNotOverMax(sharedMemBasedOnBlockSize);
         }
 
         else {
             metrics.setGridSize(op.x().data().length());
             metrics.setBlockSize(1024);
-            metrics.setSharedMemory(metrics.getBlockSize() * op.x().data().getElementSize());
+            metrics.setSharedMemoryNotOverMax(metrics.getBlockSize() * op.x().data().getElementSize());
         }
 
 
 
         if (op.y() != null) {
+            metrics.setSharedMemoryNotOverMax(metrics.getSharedMemory() * 2);
             int xStride = BlasBufferUtil.getBlasStride(dimension == null ? op.x() : op.x().tensorAlongDimension(0,dimension));
             if(xStride < 0) {
                 op.setX(op.x().dup());
@@ -354,6 +360,8 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
             super.exec(op);
 
         if (op.y() != null) {
+            metrics.setSharedMemory(metrics.getSharedMemory() * 2);
+
             int xStride = BlasBufferUtil.getBlasStride(op.x());
             if(xStride < 0) {
                 op.setX(op.x().dup());
@@ -439,6 +447,8 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
 
         CudaContext ctx;
         if (op.y() != null) {
+            metrics.setSharedMemory(metrics.getSharedMemory() * 2);
+
             int xStride = BlasBufferUtil.getBlasStride(op.x());
             if(xStride < 0) {
                 op.setX(op.x().dup());
@@ -519,6 +529,7 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
          *
          */
 
+        metrics.validate();
         String functionName = op instanceof TransformOp || op instanceof Accumulation ? op.name() + "_strided" : op.name();
         //force blocks and threads to be even
         KernelFunctions.invoke(

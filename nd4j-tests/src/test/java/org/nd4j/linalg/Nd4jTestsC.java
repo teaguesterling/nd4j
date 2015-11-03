@@ -615,6 +615,7 @@ public  class Nd4jTestsC extends BaseNd4jTest {
 
     }
 
+
     @Test
     public void testScal() {
         Nd4j.dtype = DataBuffer.Type.DOUBLE;

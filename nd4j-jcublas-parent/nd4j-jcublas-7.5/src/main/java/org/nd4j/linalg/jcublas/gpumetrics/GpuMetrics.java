@@ -58,10 +58,11 @@ public class GpuMetrics  {
      * representing the gpu information
      */
     public int[] getGpuDefinitionInfo() {
-        int[] gpuDef = new int[3];
+        int[] gpuDef = new int[4];
         gpuDef[0] = getBlockSize();
         gpuDef[1] = getGridSize();
         gpuDef[2] = getSharedMemory();
+        gpuDef[3] = ContextHolder.getInstance().getCurrentGpuInformation().getMaxSharedMemoryPerBlock();
         return gpuDef;
     }
 
@@ -169,7 +170,35 @@ public class GpuMetrics  {
     }
 
 
+    /**
+     * Validates the current configuration
+     * against the gpu's hardware constraints.
+     *
+     * Throws an {@link IllegalArgumentException}
+     * if any of the values surpass the GPU's
+     * built in hardware constraints
+     */
+    public void validate() {
+        int maxGrid = ContextHolder.getInstance().getCurrentGpuInformation().getMaxThreadsPerBlock();
+        int maxBlock = ContextHolder.getInstance().getCurrentGpuInformation().getMaxBlockDimx();
+        int maxShared = ContextHolder.getInstance().getCurrentGpuInformation().getMaxSharedMemoryPerBlock();
+        if(gridSize > maxGrid)
+            throw new IllegalArgumentException("Maximum grid size is " + maxGrid + " but was specified as " + gridSize);
+        if(blockSize > maxBlock)
+            throw new IllegalArgumentException("Maximum block size is " + maxBlock + " but was specified as " + blockSize);
+        if(sharedMemory > maxShared)
+            throw new IllegalArgumentException("Maximum shared memory size per block is " + maxShared + " but was specified as " + sharedMemory);
+    }
 
+
+    /**
+     * Special setter that queries
+     * the maximum amount of shared memory per block allowed
+     * @param sharedMemory
+     */
+    public void setSharedMemoryNotOverMax(int sharedMemory) {
+        setSharedMemory(Math.min(sharedMemory,ContextHolder.getInstance().getCurrentGpuInformation().getMaxSharedMemoryPerBlock()));
+    }
 
 
 
