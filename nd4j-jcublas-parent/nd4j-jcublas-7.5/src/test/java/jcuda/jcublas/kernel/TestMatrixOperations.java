@@ -99,6 +99,12 @@ public class TestMatrixOperations {
         array3d.sum(2);
 
         INDArray array4d = Nd4j.ones(2, 10, 10, 10);
+
+        int tad = array4d.tensorAlongDimension(0,0).elementWiseStride();
+        int tads = array4d.tensorssAlongDimension(0);
+        for(int i = 10; i < array4d.tensorssAlongDimension(0); i++) {
+            System.out.println(array4d.tensorAlongDimension(i,0).offset());
+        }
         array4d.sum(0);
         array4d.sum(1);
         array4d.sum(2);
@@ -132,9 +138,6 @@ public class TestMatrixOperations {
     @Test
     public void testSum2() {
         INDArray test = Nd4j.create(new float[]{1, 2, 3, 4}, new int[]{2, 2});
-        for(int i = 0; i < test.tensorssAlongDimension(1); i++) {
-            System.out.println(test.tensorAlongDimension(i,1).offset());
-        }
         INDArray sum = test.sum(1);
         INDArray assertion = Nd4j.create(new float[]{3, 7});
         assertEquals(assertion, sum);
@@ -146,8 +149,9 @@ public class TestMatrixOperations {
     @Test
     public void testSum() {
         INDArray n = Nd4j.create(Nd4j.linspace(1, 8, 8).data(), new int[]{2, 2, 2});
+        int elementWiseStride = n.tensorAlongDimension(0,-1).elementWiseStride();
         for(int i = 0; i < n.tensorssAlongDimension(-1); i++) {
-            System.out.println(n.tensorAlongDimension(i,-1));
+            System.out.println(n.tensorAlongDimension(i,-1).offset());
         }
 
         INDArray test = Nd4j.create(new float[]{3, 7, 11, 15}, new int[]{2, 2});

@@ -243,9 +243,12 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
 
         GpuMetrics metrics = GpuMetrics.blockAndThreads(getType(op),op.n());
         if(dimension != null) {
-            int length = op.x().tensorAlongDimension(0,dimension).length();
-            metrics.setBlockSize(length);
-            metrics.setGridSize(op.x().tensorssAlongDimension(dimension));
+            int length = op.x().tensorssAlongDimension(dimension);
+            if(length > 1000)
+                length = 1000;
+            //of note here: THIS IS REVERSE OF WHAT IT SHOULD BE, THIS IS INTENDED.
+            metrics.setGridSize(length);
+            metrics.setBlockSize(op.x().tensorAlongDimension(0,dimension).length());
             int sharedMemBasedOnBlockSize = op.x().tensorAlongDimension(0,dimension).length() * 10 *  op.x().data().getElementSize();
             if(sharedMemBasedOnBlockSize < 1024)
                 sharedMemBasedOnBlockSize = 1024;
@@ -444,6 +447,11 @@ public class JCudaExecutioner extends DefaultOpExecutioner {
         metrics.setGridSize(op.n());
         metrics.setBlockSize(1024);
         metrics.setSharedMemory(metrics.getBlockSize() * op.x().data().getElementSize());
+
+
+        metrics.setGridMemoryNotOverMax(op.x().data().length());
+        metrics.setBlockSize(1024);
+        metrics.setSharedMemoryNotOverMax(metrics.getBlockSize() * op.x().data().getElementSize());
 
         CudaContext ctx;
         if (op.y() != null) {

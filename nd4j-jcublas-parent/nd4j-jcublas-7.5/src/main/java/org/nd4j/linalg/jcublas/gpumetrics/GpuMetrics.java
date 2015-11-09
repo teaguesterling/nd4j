@@ -200,7 +200,14 @@ public class GpuMetrics  {
         setSharedMemory(Math.min(sharedMemory,ContextHolder.getInstance().getCurrentGpuInformation().getMaxSharedMemoryPerBlock()));
     }
 
-
+    /**
+     * Special setter that queries
+     * the maximum amount of shared memory per block allowed
+     * @param gridSize
+     */
+    public void setGridMemoryNotOverMax(int gridSize) {
+        setGridSize(Math.min(gridSize,ContextHolder.getInstance().getCurrentGpuInformation().getMaxThreadsPerBlock()));
+    }
 
 
 
