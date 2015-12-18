@@ -13,13 +13,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class BaseCPUAction implements Task<Void>, Future<Void> { //} extends RecursiveAction implements Task<Void> {
 
-    //TODO: PADDING VARIABLES
+    //Padding variables to avoid false sharing on splitCount.
+    // TODO: Test that this actually helps (may not: the AtomicInteger may simply be allocated elsewhere)
     private long p0, p1, p2, p3, p4, p5, p6, p7;
     protected final AtomicInteger splitCount = new AtomicInteger(0);
     private long p8, p9, p10, p11, p12, p13, p14, p15;
 
     protected final int threshold;
-    protected int maxSplits;
     protected int n;
     protected int offsetX;
     protected int offsetY;
@@ -39,10 +39,6 @@ public abstract class BaseCPUAction implements Task<Void>, Future<Void> { //} ex
         this.incrX = incrX;
         this.incrY = incrY;
         this.incrZ = incrZ;
-
-        if(n % threshold == 0) maxSplits = n / threshold;
-        else maxSplits = n / threshold + 1;
-        latch = new CountDownLatch(maxSplits);
     }
 
     public BaseCPUAction(Op op, int threshold) {
@@ -54,32 +50,6 @@ public abstract class BaseCPUAction implements Task<Void>, Future<Void> { //} ex
         this.incrX = op.x().elementWiseStride();
         this.incrY = (op.y() != null ? op.y().elementWiseStride() : 0);
         this.incrZ = (op.z() != null ? op.z().elementWiseStride() : 0);
-
-        if(n % threshold == 0) maxSplits = n / threshold;
-        else maxSplits = n / threshold + 1;
-        latch = new CountDownLatch(maxSplits);
-
-        if (incrX == -1) {
-            //Edge case: sometimes NDArray.elementWiseStride() returns -1, due to weird strides,
-            //but every element is still separated by same amount in buffer
-            //For example, a TransformOp with x.length() == x.data.length(), but x.stride() is not ascending/descending
-            INDArray reshapeX = op.x().reshape(new int[]{1, ArrayUtil.prod(op.x().shape())});
-            incrX = reshapeX.stride(1);
-        }
-        if (incrY == -1) {
-            if (op.y() == op.x()) incrY = incrX;
-            else {
-                INDArray reshapeY = op.y().reshape(new int[]{1, ArrayUtil.prod(op.y().shape())});
-                incrY = reshapeY.stride(1);
-            }
-        }
-        if (incrZ == -1) {
-            if (op.z() == op.x()) incrZ = incrX;
-            else {
-                INDArray reshapeZ = op.z().reshape(new int[]{1, ArrayUtil.prod(op.z().shape())});
-                incrY = reshapeZ.stride(1);
-            }
-        }
     }
 
     @Override

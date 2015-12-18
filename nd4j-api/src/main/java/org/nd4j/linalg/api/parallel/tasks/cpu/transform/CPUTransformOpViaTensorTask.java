@@ -3,19 +3,16 @@ package org.nd4j.linalg.api.parallel.tasks.cpu.transform;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.TransformOp;
 import org.nd4j.linalg.api.ops.executioner.OpExecutionerUtil;
-import org.nd4j.linalg.api.parallel.tasks.cpu.BaseCPUAction;
 import org.nd4j.linalg.api.shape.tensor.TensorCalculator;
 import org.nd4j.linalg.api.shape.tensor.TensorCalculatorFactory;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.RecursiveAction;
 
 public class CPUTransformOpViaTensorTask extends BaseCPUTransformOpAction {
     private TensorCalculator tCalcx;
     private TensorCalculator tCalcy;
     private TensorCalculator tCalcz;
+    private final int maxSplits;
     private final int tensorLength;
     private final int blocksPerTensor;
     private final int blockSize;
@@ -58,11 +55,9 @@ public class CPUTransformOpViaTensorTask extends BaseCPUTransformOpAction {
 
         blockSize = tensorLength / blocksPerTensor; //Except for last, might be a bit bigger due to rounding
 
-        //TODO clean this up
         maxSplits = tCalcx.getNumTensors() * blocksPerTensor;
         latch = new CountDownLatch(maxSplits);
 
-        //TODO also clean this up
         this.incrX = tCalcx.getElementWiseStrideForTensor();
         this.incrY = (tCalcy == null ? 0 : tCalcy.getElementWiseStrideForTensor());
         if(x == z) incrZ = incrX;
@@ -72,14 +67,12 @@ public class CPUTransformOpViaTensorTask extends BaseCPUTransformOpAction {
     @Override
     public Void call() {
         INDArray x = op.x();
-        INDArray y = op.y();
         INDArray z = op.z();
 
         int thisIdx = splitCount.getAndIncrement();
         while(thisIdx < maxSplits){
             int tensorIdx = thisIdx / blocksPerTensor;
             int blockWithinTensor = thisIdx % blocksPerTensor;
-
 
             int offsetX = tCalcx.getOffsetForTensor(tensorIdx);
             int offsetY = (tCalcy != null ? tCalcy.getOffsetForTensor(tensorIdx) : 0);

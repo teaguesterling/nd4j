@@ -16,6 +16,8 @@ public abstract class BaseCPUTransformOpAction extends BaseCPUAction {
                                     int incrX, int incrY, int incrZ) {
         super(threshold, n, offsetX, offsetY, offsetZ, incrX, incrY, incrZ);
         this.op = op;
+        this.offsetY = (op.y() != null ? op.y().offset() : 0);
+        this.incrY = (op.y() != null ? op.y().elementWiseStride() : 0);
     }
 
     /**
@@ -29,7 +31,6 @@ public abstract class BaseCPUTransformOpAction extends BaseCPUAction {
     }
 
     protected void doOp(final int startIdx, final int endIdx, final int offsetX, final int offsetY, final int offsetZ){
-//    protected void doOp(final int startIdx, final int endIdx){
         DataBuffer x = op.x().data();
         DataBuffer y = (op.y() != null ? op.y().data() : null);
         DataBuffer z = op.z().data();
@@ -136,7 +137,7 @@ public abstract class BaseCPUTransformOpAction extends BaseCPUAction {
                 } else {
 
                     final int startIdxBytes = startIdx * 8;
-                    final int endIdxBytes = endIdx * 8;  //End index, exclusive
+                    final int endIdxBytes = endIdx * 8;
 
                     int byteOffsetX = 8 * offsetX;
                     int byteOffsetY = 8 * offsetY;
@@ -169,10 +170,6 @@ public abstract class BaseCPUTransformOpAction extends BaseCPUAction {
         } else {
             //Task: Z = Op(X)
             if (x.allocationMode() == DataBuffer.AllocationMode.HEAP) {
-
-//                final int startIdx = thisIdx * threshold;
-//                final int endIdx = (thisIdx == maxSplits - 1 ? n : startIdx + threshold);  //End index, exclusive
-
                 //Heap allocation: float[] or double[]
                 if (x.dataType() == DataBuffer.Type.FLOAT) {
                     float[] xf = (float[]) x.array();
@@ -264,7 +261,6 @@ public abstract class BaseCPUTransformOpAction extends BaseCPUAction {
                         }
                     }
                 } else {
-
                     final int startIdxBytes = startIdx * 8;
                     final int endIdxBytes = endIdx * 8;  //End index, exclusive
 
