@@ -22,9 +22,11 @@ import org.nd4j.linalg.api.ops.impl.transforms.arithmetic.*;
 import org.nd4j.linalg.api.ops.impl.broadcast.*;
 import org.nd4j.linalg.api.parallel.tasks.Task;
 import org.nd4j.linalg.api.parallel.tasks.cpu.CPUTaskFactory;
+import org.nd4j.linalg.api.parallel.tasks.cpu.misc.CPUAssignTask;
 import org.nd4j.linalg.checkutil.NDArrayCreationUtil;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.factory.Nd4jBackend;
+import org.nd4j.linalg.util.ArrayUtil;
 
 import java.lang.reflect.Constructor;
 import java.util.*;
@@ -823,4 +825,85 @@ public class CPUTaskFactoryTest {
         Nd4j.alloc = origAlloc;
     }
 
+
+    @Test
+    public void testCPUAssignTask(){
+
+        int seed = 12345;
+        int[] nDimsIn = {2,3,4,5,6};
+        int[][] shapes = new int[][]{
+                {10,8},
+                {5,4,4},
+                {5,4,4,4},
+                {5,4,4,4,4},
+                {5,4,4,4,4,4}};
+
+
+        for( int dimIn : nDimsIn ){
+
+            List<Pair<INDArray,String>> inArrays;
+
+            switch (dimIn){
+                case 2:
+                    inArrays = NDArrayCreationUtil.getAllTestMatricesWithShape(shapes[0][0],shapes[0][1],seed);
+                    break;
+                case 3:
+                    inArrays = NDArrayCreationUtil.getAll3dTestArraysWithShape(seed, shapes[1]);
+                    break;
+                case 4:
+                    inArrays = NDArrayCreationUtil.getAll4dTestArraysWithShape(seed, shapes[2]);
+                    break;
+                case 5:
+                    inArrays = NDArrayCreationUtil.getAll5dTestArraysWithShape(seed, shapes[3]);
+                    break;
+                case 6:
+                    inArrays = NDArrayCreationUtil.getAll6dTestArraysWithShape(seed, shapes[4]);
+                    break;
+                default:
+                    throw new RuntimeException();
+            }
+
+            //Determine some output shapes:
+            //Two row vectors
+            //Same dimension but reshaped
+            //Fewer dimensions
+            //More dimensions
+
+            int[] origShape = shapes[dimIn-2];
+            INDArray row = Nd4j.create(1, ArrayUtil.prod(origShape));
+            INDArray col = Nd4j.create(ArrayUtil.prod(origShape), 1);
+
+            int[] shape1 = Arrays.copyOf(origShape, origShape.length);
+            shape1[0] *= 2;
+            shape1[shape1.length-1] /= 2;
+            INDArray reshape1 = Nd4j.create(shape1);
+
+            int[] shapeFewer = Arrays.copyOf(origShape, origShape.length-1);
+            shapeFewer[0] *= origShape[origShape.length-1];
+            INDArray reshape2 = Nd4j.create(shapeFewer);
+
+            int[] shapeMore = Arrays.copyOf(origShape, origShape.length+1);
+            shapeMore[shapeMore.length-1] = 2;
+            shapeMore[2] /= 2;
+            INDArray reshape3 = Nd4j.create(shapeMore);
+
+            INDArray[] arr = new INDArray[]{row,col,reshape1,reshape2,reshape3};
+
+            for(Pair<INDArray,String> p : inArrays ){
+                String s = p.getSecond();
+                INDArray x = p.getFirst();
+
+                for( INDArray z : arr ){
+                    new CPUAssignTask(x,z).invokeBlocking();
+
+                    INDArray exp = z.dup().assign(x);   //TODO can't keep checking like this forever...
+
+                    assertEquals(exp,z);
+                }
+            }
+
+        }
+
+
+    }
 }
