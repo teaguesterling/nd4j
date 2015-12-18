@@ -59,7 +59,13 @@ public class CPUTaskExecutor implements TaskExecutor {
                     log.error("Interrupted exception: Shutting down. {}",Thread.currentThread().getId(),e);
                     throw new RuntimeException(e);
                 }
-                task.call();
+                try {
+                    task.call();
+                } catch(Exception e){
+                    System.out.println("Exception thrown by task {} on threadId={}"+task + ", " + Thread.currentThread().getName());
+                    e.printStackTrace();
+                    log.warn("Exception thrown by task {} on threadId={}",task,Thread.currentThread().getName(),e);
+                }
             }
 
 //            log.info("Worker thread shutting down: " + Thread.currentThread().getId());
