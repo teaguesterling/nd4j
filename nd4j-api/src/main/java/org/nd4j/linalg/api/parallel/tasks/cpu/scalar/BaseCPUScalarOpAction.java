@@ -25,8 +25,9 @@ public abstract class BaseCPUScalarOpAction extends BaseCPUAction {
     /**
      * Constructor for doing a 1d tensor first
      */
+    /*
     public BaseCPUScalarOpAction(ScalarOp op, int threshold, int tadIdx, int tadDim) {
         super(op, threshold, tadIdx, tadDim);
         this.op = op;
-    }
+    }*/
 }

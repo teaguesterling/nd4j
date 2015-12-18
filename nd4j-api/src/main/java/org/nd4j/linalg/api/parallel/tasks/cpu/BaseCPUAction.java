@@ -2,17 +2,24 @@ package org.nd4j.linalg.api.parallel.tasks.cpu;
 
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.Op;
+import org.nd4j.linalg.api.parallel.tasks.CPUTaskExecutor;
 import org.nd4j.linalg.api.parallel.tasks.Task;
 import org.nd4j.linalg.api.parallel.tasks.TaskExecutorProvider;
 import org.nd4j.linalg.util.ArrayUtil;
 
 import java.util.List;
-import java.util.concurrent.Future;
-import java.util.concurrent.RecursiveAction;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
-public abstract class BaseCPUAction extends RecursiveAction implements Task<Void> {
+public abstract class BaseCPUAction implements Task<Void>, Future<Void> { //} extends RecursiveAction implements Task<Void> {
+
+    //TODO: PADDING VARIABLES
+    private long p0, p1, p2, p3, p4, p5, p6, p7;
+    protected final AtomicInteger splitCount = new AtomicInteger(0);
+    private long p8, p9, p10, p11, p12, p13, p14, p15;
 
     protected final int threshold;
+    protected int maxSplits;
     protected int n;
     protected int offsetX;
     protected int offsetY;
@@ -21,14 +28,7 @@ public abstract class BaseCPUAction extends RecursiveAction implements Task<Void
     protected int incrY;
     protected int incrZ;
 
-    protected boolean doTensorFirst;
-    protected int tensorIdx;
-    protected int tensorDim;
-
-    protected boolean executed = false;
-
-    protected Future<Void> future;
-    protected List<Task<Void>> subTasks;
+    protected CountDownLatch latch;
 
     public BaseCPUAction(int threshold, int n, int offsetX, int offsetY, int offsetZ, int incrX, int incrY, int incrZ) {
         this.threshold = threshold;
@@ -39,7 +39,10 @@ public abstract class BaseCPUAction extends RecursiveAction implements Task<Void
         this.incrX = incrX;
         this.incrY = incrY;
         this.incrZ = incrZ;
-        doTensorFirst = false;
+
+        if(n % threshold == 0) maxSplits = n / threshold;
+        else maxSplits = n / threshold + 1;
+        latch = new CountDownLatch(maxSplits);
     }
 
     public BaseCPUAction(Op op, int threshold) {
@@ -51,7 +54,10 @@ public abstract class BaseCPUAction extends RecursiveAction implements Task<Void
         this.incrX = op.x().elementWiseStride();
         this.incrY = (op.y() != null ? op.y().elementWiseStride() : 0);
         this.incrZ = (op.z() != null ? op.z().elementWiseStride() : 0);
-        doTensorFirst = false;
+
+        if(n % threshold == 0) maxSplits = n / threshold;
+        else maxSplits = n / threshold + 1;
+        latch = new CountDownLatch(maxSplits);
 
         if (incrX == -1) {
             //Edge case: sometimes NDArray.elementWiseStride() returns -1, due to weird strides,
@@ -76,75 +82,18 @@ public abstract class BaseCPUAction extends RecursiveAction implements Task<Void
         }
     }
 
-    /**
-     * Constructor for doing a 1d tensor along dimension first
-     */
-    public BaseCPUAction(Op op, int threshold, int tadIdx, int tadDim) {
-        doTensorFirst = true;
-        this.threshold = threshold;
-        this.tensorIdx = tadIdx;
-        this.tensorDim = tadDim;
-    }
-
-    protected void doTensorFirst(Op op) {
-        INDArray x = op.x();
-        INDArray y = op.y();
-        INDArray z = op.z();
-        INDArray tadx = x.tensorAlongDimension(tensorIdx, tensorDim);
-        this.n = tadx.length();
-        offsetX = tadx.offset();
-        incrX = tadx.elementWiseStride();
-        if (y == null) {
-            offsetY = 0;
-            incrY = 0;
-        } else if (y == x) {
-            offsetY = offsetX;
-            incrY = incrX;
-        } else {
-            INDArray tady = y.tensorAlongDimension(tensorIdx, tensorDim);
-            offsetY = tady.offset();
-            incrY = tady.elementWiseStride();
-        }
-
-        if (z == null) {
-            offsetZ = 0;
-            incrZ = 0;
-        } else if (z == x) {
-            offsetZ = offsetX;
-            incrZ = incrX;
-        } else if (z == y) {
-            offsetZ = offsetY;
-            incrZ = incrY;
-        } else {
-            INDArray tadz = z.tensorAlongDimension(tensorIdx, tensorDim);
-            offsetZ = tadz.offset();
-            incrZ = tadz.elementWiseStride();
-        }
-    }
-
     @Override
     public void invokeAsync() {
-        this.future = TaskExecutorProvider.getTaskExecutor().executeAsync(this);
+        CPUTaskExecutor.getInstance().executeAsync(this);
     }
 
     @Override
     public Void blockUntilComplete() {
-        if (future == null) {
-            //invokeAsync hasn't been called?
-            invokeAsync();
-        }
-        try {
-            future.get();
-        } catch (Exception e) {
+        try{
+            return this.get();
+        }catch(InterruptedException | ExecutionException e){
             throw new RuntimeException(e);
         }
-
-        if (subTasks != null) {
-            for (Task<?> t : subTasks) {
-                t.blockUntilComplete();
-            }
-        }
-        return null;
     }
 
 
@@ -152,5 +101,32 @@ public abstract class BaseCPUAction extends RecursiveAction implements Task<Void
     public Void invokeBlocking() {
         invokeAsync();
         return blockUntilComplete();
+    }
+
+    @Override
+    public boolean cancel(boolean mayInterruptIfRunning) {
+        return false;
+    }
+
+    @Override
+    public boolean isCancelled() {
+        return false;
+    }
+
+    @Override
+    public boolean isDone() {
+        return latch.getCount() <= 0;
+    }
+
+    @Override
+    public Void get() throws InterruptedException, ExecutionException {
+        latch.await();
+        return null;
+    }
+
+    @Override
+    public Void get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+        latch.await(timeout, unit);
+        return null;
     }
 }

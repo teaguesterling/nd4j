@@ -24,12 +24,13 @@ public class CPUScalarOpViaTensorAction extends BaseCPUAction {
 
     @Override
     public Void call() {
+        throw new UnsupportedOperationException("Not implemnted");
         //Callable/ExecutorService
-        execute(false);
-        return null;
+//        execute(false);
+//        return null;
     }
 
-
+    /*
     @Override
     protected void compute() {
         //Fork join
@@ -130,5 +131,5 @@ public class CPUScalarOpViaTensorAction extends BaseCPUAction {
                 t.join();
             }
         }
-    }
+    }*/
 }
