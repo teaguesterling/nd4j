@@ -22,6 +22,7 @@ public class CPUAssignTask implements Task<Void>, Future<Void> {
     protected final AtomicInteger splitCount = new AtomicInteger(0);
     protected final int maxSplits;
     protected final CountDownLatch latch;
+    private volatile boolean cancelled = false;
 
     private final TensorCalculator tCalcX;
     private final TensorCalculator tCalcZ;
@@ -75,7 +76,6 @@ public class CPUAssignTask implements Task<Void>, Future<Void> {
 
     @Override
     public Void call() {
-
         int thisIdx = splitCount.getAndIncrement(); //Index for tensor along last dimension of Z
         while (thisIdx < maxSplits) {
 
@@ -118,33 +118,28 @@ public class CPUAssignTask implements Task<Void>, Future<Void> {
                     FloatBuffer fbx = x.asNioFloat();
                     FloatBuffer fbz = z.asNioFloat();
 
-                    int byteOffsetZ = offsetZ * 4;
-
-                    for( int i=0; i<4*tLengthZ; i+=4, valueInTensorX++ ){
+                    for( int i=0; i<tLengthZ; i++, valueInTensorX++ ){
                         if(valueInTensorX >= tLengthX){ //Get next tensor
                             offsetX = tCalcX.getOffsetForTensor(++tensorX);
                             valueInTensorX = 0;
                         }
-                        fbz.put(byteOffsetZ+i,fbx.get(4*(offsetX+valueInTensorX*incrX)));
+                        fbz.put(offsetZ+i*incrZ,fbx.get(offsetX+valueInTensorX*incrX));
                     }
 
                 } else {
                     DoubleBuffer dbx = x.asNioDouble();
                     DoubleBuffer dbz = z.asNioDouble();
 
-                    int byteOffsetZ = offsetZ * 8;
-
-                    for( int i=0; i<8*tLengthZ; i+=8, valueInTensorX++ ){
+                    for( int i=0; i<tLengthZ; i++, valueInTensorX++ ){
                         if(valueInTensorX >= tLengthX){ //Get next tensor
                             offsetX = tCalcX.getOffsetForTensor(++tensorX);
                             valueInTensorX = 0;
                         }
-                        dbz.put(byteOffsetZ+i,dbx.get(8*(offsetX+valueInTensorX*incrX)));
+                        dbz.put(offsetZ+i*incrZ,dbx.get(offsetX+valueInTensorX*incrX));
                     }
 
                 }
             }
-
 
             latch.countDown();
             thisIdx = splitCount.getAndIncrement();
@@ -155,12 +150,18 @@ public class CPUAssignTask implements Task<Void>, Future<Void> {
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
+        if(!isDone() && !cancelled){
+            splitCount.addAndGet(maxSplits);
+            while(latch.getCount() > 0) latch.countDown();
+            cancelled = true;
+            return true;
+        }
         return false;
     }
 
     @Override
     public boolean isCancelled() {
-        return false;
+        return cancelled;
     }
 
     @Override

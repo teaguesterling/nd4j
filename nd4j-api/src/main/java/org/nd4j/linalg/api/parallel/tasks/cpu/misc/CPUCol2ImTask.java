@@ -22,6 +22,7 @@ public class CPUCol2ImTask implements Task<INDArray>, Future<INDArray> {
     protected final AtomicInteger splitCount = new AtomicInteger(0);
     protected final int maxSplits;
     protected final CountDownLatch latch;
+    protected volatile boolean cancelled = false;
 
     protected final INDArray col;
     protected INDArray imgOut;
@@ -605,12 +606,18 @@ public class CPUCol2ImTask implements Task<INDArray>, Future<INDArray> {
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
+        if(!isDone() && !cancelled){
+            splitCount.addAndGet(maxSplits);
+            while(latch.getCount() > 0) latch.countDown();
+            cancelled = true;
+            return true;
+        }
         return false;
     }
 
     @Override
     public boolean isCancelled() {
-        return false;
+        return cancelled;
     }
 
     @Override

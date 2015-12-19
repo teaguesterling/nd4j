@@ -18,6 +18,8 @@ public abstract class BaseCPUAction implements Task<Void>, Future<Void> { //} ex
     private long p0, p1, p2, p3, p4, p5, p6, p7;
     protected final AtomicInteger splitCount = new AtomicInteger(0);
     private long p8, p9, p10, p11, p12, p13, p14, p15;
+    protected int maxSplits;
+    protected transient boolean cancelled = false;
 
     protected final int threshold;
     protected int n;
@@ -74,12 +76,18 @@ public abstract class BaseCPUAction implements Task<Void>, Future<Void> { //} ex
     }
 
     @Override
-    public boolean cancel(boolean mayInterruptIfRunning) {
-        return false;
+    public boolean isCancelled() {
+        return cancelled;
     }
 
     @Override
-    public boolean isCancelled() {
+    public boolean cancel(boolean mayInterruptIfRunning) {
+        if(!isDone() && !cancelled){
+            splitCount.addAndGet(maxSplits);
+            while(latch.getCount() > 0) latch.countDown();
+            cancelled = true;
+            return true;
+        }
         return false;
     }
 

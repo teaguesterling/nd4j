@@ -13,8 +13,6 @@ import java.util.concurrent.RecursiveTask;
 
 public class CPUScalarOpAction extends BaseCPUScalarOpAction {
 
-    private final int maxSplits;
-
     /**
      * Constructor for operating on subset of NDArray
      */

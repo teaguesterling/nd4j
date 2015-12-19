@@ -4,6 +4,7 @@ import org.apache.commons.math3.util.Pair;
 import org.junit.Before;
 import org.junit.Test;
 import org.nd4j.linalg.api.buffer.DataBuffer;
+import org.nd4j.linalg.api.iter.NdIndexIterator;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.*;
 import org.nd4j.linalg.api.ops.impl.accum.*;
@@ -829,6 +830,8 @@ public class CPUTaskFactoryTest {
     @Test
     public void testCPUAssignTask(){
 
+
+
         int seed = 12345;
         int[] nDimsIn = {2,3,4,5,6};
         int[][] shapes = new int[][]{
@@ -838,72 +841,117 @@ public class CPUTaskFactoryTest {
                 {5,4,4,4,4},
                 {5,4,4,4,4,4}};
 
+        for (DataBuffer.Type dtype : new DataBuffer.Type[]{DataBuffer.Type.FLOAT,DataBuffer.Type.DOUBLE}) {
 
-        for( int dimIn : nDimsIn ){
+            Nd4j.dtype = dtype;
+            Nd4j.factory().setDType(dtype);
 
-            List<Pair<INDArray,String>> inArrays;
+            for (DataBuffer.AllocationMode allocationMode : new DataBuffer.AllocationMode[]{DataBuffer.AllocationMode.HEAP, DataBuffer.AllocationMode.DIRECT}) {
+                Nd4j.alloc = allocationMode;
 
-            switch (dimIn){
-                case 2:
-                    inArrays = NDArrayCreationUtil.getAllTestMatricesWithShape(shapes[0][0],shapes[0][1],seed);
-                    break;
-                case 3:
-                    inArrays = NDArrayCreationUtil.getAll3dTestArraysWithShape(seed, shapes[1]);
-                    break;
-                case 4:
-                    inArrays = NDArrayCreationUtil.getAll4dTestArraysWithShape(seed, shapes[2]);
-                    break;
-                case 5:
-                    inArrays = NDArrayCreationUtil.getAll5dTestArraysWithShape(seed, shapes[3]);
-                    break;
-                case 6:
-                    inArrays = NDArrayCreationUtil.getAll6dTestArraysWithShape(seed, shapes[4]);
-                    break;
-                default:
-                    throw new RuntimeException();
-            }
+                for (int dimIn : nDimsIn) {
 
-            //Determine some output shapes:
-            //Two row vectors
-            //Same dimension but reshaped
-            //Fewer dimensions
-            //More dimensions
+                    List<Pair<INDArray, String>> inArrays;
 
-            int[] origShape = shapes[dimIn-2];
-            INDArray row = Nd4j.create(1, ArrayUtil.prod(origShape));
-            INDArray col = Nd4j.create(ArrayUtil.prod(origShape), 1);
+                    switch (dimIn) {
+                        case 2:
+                            inArrays = NDArrayCreationUtil.getAllTestMatricesWithShape(shapes[0][0], shapes[0][1], seed);
+                            break;
+                        case 3:
+                            inArrays = NDArrayCreationUtil.getAll3dTestArraysWithShape(seed, shapes[1]);
+                            break;
+                        case 4:
+                            inArrays = NDArrayCreationUtil.getAll4dTestArraysWithShape(seed, shapes[2]);
+                            break;
+                        case 5:
+                            inArrays = NDArrayCreationUtil.getAll5dTestArraysWithShape(seed, shapes[3]);
+                            break;
+                        case 6:
+                            inArrays = NDArrayCreationUtil.getAll6dTestArraysWithShape(seed, shapes[4]);
+                            break;
+                        default:
+                            throw new RuntimeException();
+                    }
 
-            int[] shape1 = Arrays.copyOf(origShape, origShape.length);
-            shape1[0] *= 2;
-            shape1[shape1.length-1] /= 2;
-            INDArray reshape1 = Nd4j.create(shape1);
+                    //Determine some output shapes:
+                    //Two row vectors
+                    //Same dimension but reshaped
+                    //Fewer dimensions
+                    //More dimensions
 
-            int[] shapeFewer = Arrays.copyOf(origShape, origShape.length-1);
-            shapeFewer[0] *= origShape[origShape.length-1];
-            INDArray reshape2 = Nd4j.create(shapeFewer);
+                    int[] origShape = shapes[dimIn - 2];
 
-            int[] shapeMore = Arrays.copyOf(origShape, origShape.length+1);
-            shapeMore[shapeMore.length-1] = 2;
-            shapeMore[2] /= 2;
-            INDArray reshape3 = Nd4j.create(shapeMore);
+                    int[] shape1 = Arrays.copyOf(origShape, origShape.length);
+                    shape1[0] *= 2;
+                    shape1[shape1.length - 1] /= 2;
 
-            INDArray[] arr = new INDArray[]{row,col,reshape1,reshape2,reshape3};
+                    int[] shapeFewer = Arrays.copyOf(origShape, origShape.length - 1);
+                    shapeFewer[0] *= origShape[origShape.length - 1];
 
-            for(Pair<INDArray,String> p : inArrays ){
-                String s = p.getSecond();
-                INDArray x = p.getFirst();
+                    int[] shapeMore = Arrays.copyOf(origShape, origShape.length + 1);
+                    shapeMore[shapeMore.length - 1] = 2;
+                    shapeMore[2] /= 2;
+                    if (shapeMore.length > 6) shapeMore = origShape;
 
-                for( INDArray z : arr ){
-                    new CPUAssignTask(x,z).invokeBlocking();
+                    int[][] testAssignShapes = new int[5][0];
+                    testAssignShapes[0] = new int[]{1, ArrayUtil.prod(origShape)};
+                    testAssignShapes[1] = new int[]{ArrayUtil.prod(origShape), 1};
+                    testAssignShapes[2] = shape1;
+                    testAssignShapes[3] = shapeFewer;
+                    testAssignShapes[4] = shapeMore;
 
-                    INDArray exp = z.dup().assign(x);   //TODO can't keep checking like this forever...
+                    for (Pair<INDArray, String> p : inArrays) {
+                        String s = p.getSecond();
+                        INDArray x = p.getFirst();
 
-                    assertEquals(exp,z);
+                        for (int[] assignShape : testAssignShapes) {
+                            List<Pair<INDArray, String>> assignArrays = NDArrayCreationUtil.getTestArrays(123, assignShape);
+                            for (Pair<INDArray, String> p2 : assignArrays) {
+                                String msg = allocationMode + ", " + dtype;
+
+                                INDArray z = p2.getFirst();
+
+                                assertEquals(z.length(), x.length());
+                                CPUAssignTask task = new CPUAssignTask(x, z);
+                                task.invokeAsync();
+                                task.blockUntilComplete();
+
+                                INDArray exp = Nd4j.create(z.shape());
+                                NdIndexIterator iterator = new NdIndexIterator(exp.shape());
+                                NdIndexIterator otherIter = new NdIndexIterator(x.shape());
+                                for (int i = 0; i < exp.length(); i++) {
+                                    exp.putScalar(iterator.next(), x.getDouble(otherIter.next()));
+                                }
+
+                                assertEquals(msg, exp, z);
+                            }
+                        }
+                    }
                 }
             }
+        }
+    }
 
+    @Test
+    public void debugCPUAssignTask(){
+        //Single test broken out for debugging
+
+        INDArray x = Nd4j.create(10,8);
+        INDArray z = Nd4j.create(1,80);
+
+        assertEquals(z.length(), x.length());
+        System.out.println(Arrays.toString(x.shape()) + "\t" + Arrays.toString(z.shape()));
+        CPUAssignTask task = new CPUAssignTask(x,z);
+        task.invokeAsync();
+        task.blockUntilComplete();
+
+        INDArray exp = Nd4j.create(z.shape());
+        NdIndexIterator iterator = new NdIndexIterator(exp.shape());
+        NdIndexIterator otherIter = new NdIndexIterator(x.shape());
+        for(int i = 0; i < exp.length(); i++) {
+            exp.putScalar(iterator.next(), x.getDouble(otherIter.next()));
         }
 
-
+        assertEquals(exp, z);
     }
 }

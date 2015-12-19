@@ -7,7 +7,6 @@ import org.nd4j.linalg.util.ArrayUtil;
 import java.util.concurrent.CountDownLatch;
 
 public class CPUTransformOpAction extends BaseCPUTransformOpAction {
-    private final int maxSplits;
 
     public CPUTransformOpAction(TransformOp op, int threshold){
         super(op,threshold);
@@ -58,4 +57,5 @@ public class CPUTransformOpAction extends BaseCPUTransformOpAction {
 
         return null;
     }
+
 }

@@ -20,7 +20,6 @@ import java.util.concurrent.RecursiveTask;
 public class CPUScalarOpViaTensorAction extends BaseCPUScalarOpAction {
     private TensorCalculator tCalcx;
     private TensorCalculator tCalcz;
-    private final int maxSplits;
     private final int tensorLength;
     private final int blocksPerTensor;
     private final int blockSize;

@@ -1,5 +1,6 @@
 package org.nd4j.linalg.api.parallel.tasks;
 
+import org.nd4j.linalg.executors.ExecutorServiceProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -7,7 +8,16 @@ import java.util.concurrent.*;
 
 public class CPUTaskExecutor implements TaskExecutor {
 
-    private static CPUTaskExecutor instance = new CPUTaskExecutor(12);
+    private static CPUTaskExecutor instance;
+    private static final int nThreads;
+    static {
+        int defaultThreads = Runtime.getRuntime().availableProcessors();
+        boolean enabled = Boolean.parseBoolean(System.getProperty(ExecutorServiceProvider.ENABLED,"true"));
+        if(!enabled) nThreads = 1;
+        else nThreads = Integer.parseInt(System.getProperty(ExecutorServiceProvider.EXEC_THREADS,String.valueOf(defaultThreads)));
+        instance = new CPUTaskExecutor(nThreads);
+    }
+
     public static TaskExecutor getInstance(){
         return instance;
     }
@@ -26,10 +36,6 @@ public class CPUTaskExecutor implements TaskExecutor {
             workerThreads[i].setName("CPUTaskExecutor-" + i);
             workerThreads[i].start();
         }
-
-
-
-        System.out.println("STARTED CPUTASKEXECUTOR");
     }
 
     @Override
@@ -48,9 +54,6 @@ public class CPUTaskExecutor implements TaskExecutor {
 
         @Override
         public void run() {
-//            log.info("Starting worker thread: " + Thread.currentThread().getId());
-            System.out.println("Starting worker thread: " + Thread.currentThread().getId());
-
             while(true){
                 Task<?> task;
                 try{
@@ -62,13 +65,11 @@ public class CPUTaskExecutor implements TaskExecutor {
                 try {
                     task.call();
                 } catch(Exception e){
-                    System.out.println("Exception thrown by task {} on threadId={}"+task + ", " + Thread.currentThread().getName());
-                    e.printStackTrace();
                     log.warn("Exception thrown by task {} on threadId={}",task,Thread.currentThread().getName(),e);
+                    e.printStackTrace();
+                    ((Future<?>)task).cancel(true);
                 }
             }
-
-//            log.info("Worker thread shutting down: " + Thread.currentThread().getId());
         }
     }
 
