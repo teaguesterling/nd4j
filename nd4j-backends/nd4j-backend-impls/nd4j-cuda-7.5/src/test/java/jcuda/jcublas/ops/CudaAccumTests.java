@@ -235,7 +235,7 @@ public class CudaAccumTests {
     }
 
     @Test
-    public void testSum3_1() {
+    public void testSum3_1() throws Exception {
         INDArray n = Nd4j.linspace(1, 128000, 128000).reshape(128, 1000);
 
 
