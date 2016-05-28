@@ -1,12 +1,14 @@
 package org.nd4j.nativeblas;
 
+import org.bytedeco.javacpp.Pointer;
+import org.bytedeco.javacpp.annotation.Platform;
 import org.nd4j.linalg.api.complex.IComplexNumber;
 
 /**
  *
  */
-
-public class NativeLapack {
+@Platform(include = "NativeLapack.h", compiler = "cpp11", link = "nd4j", library = "jnind4j")
+public class NativeLapack extends Pointer {
 
 
     native int dgbbrd(int matriint, char vect, int m, int n, int ncc, int kl, int ku, long ab, int ldab,
