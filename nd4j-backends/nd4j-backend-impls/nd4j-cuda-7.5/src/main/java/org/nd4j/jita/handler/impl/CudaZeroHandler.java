@@ -188,7 +188,7 @@ public class CudaZeroHandler implements MemoryHandler {
      * @return
      */
     @Override
-    public PointersPair alloc(AllocationStatus targetMode, AllocationPoint point, AllocationShape shape) {
+    public PointersPair alloc(AllocationStatus targetMode, AllocationPoint point, AllocationShape shape, boolean initialize) {
 
         long reqMemory = AllocationUtils.getRequiredMemory(shape);
         CudaContext context = getCudaContext();
@@ -216,15 +216,11 @@ public class CudaZeroHandler implements MemoryHandler {
                 PointersPair pair = provider.malloc(shape, point, targetMode);
 
 
-                //JCuda.cudaMemsetAsync(new Pointer(pair.getHostPointer().address()), 0, reqMemory, context.getOldStream());
-                //JCuda.cudaStreamSynchronize(context.getOldStream());
-             //   if (point.isConstant()) {
+                if (initialize) {
                     org.bytedeco.javacpp.Pointer.memset(pair.getHostPointer(), 0, reqMemory);
                     point.tickHostWrite();
-            //    } else {
-            //        JCuda.cudaMemsetAsync(new Pointer(pair.getHostPointer().address()), 0, reqMemory, context.getOldStream());
-                    //point.tickHostWrite();
-         //       }
+                }
+
 
                 pickupHostAllocation(point);
 
@@ -238,7 +234,7 @@ public class CudaZeroHandler implements MemoryHandler {
 
                 // if the initial memory location is device, there's a chance we don't have zero memory allocated
                 if (point.getPointers() == null || point.getPointers().getHostPointer() == null) {
-                    tmpPair = alloc(AllocationStatus.HOST, point, point.getShape());
+                    tmpPair = alloc(AllocationStatus.HOST, point, point.getShape(), initialize);
 
                     returnPair.setDevicePointer(tmpPair.getHostPointer());
                     returnPair.setHostPointer(tmpPair.getHostPointer());
@@ -378,8 +374,17 @@ public class CudaZeroHandler implements MemoryHandler {
                  cudaMemcpyKind.cudaMemcpyHostToDevice,
                  context.getOldStream()
              );*/
-            if (nativeOps.memcpyAsync(point.getPointers().getDevicePointer().address(), point.getPointers().getHostPointer().address(), AllocationUtils.getRequiredMemory(shape), CudaConstants.cudaMemcpyHostToDevice, context.getOldStream().address()) == 0)
-                throw new IllegalStateException("MemcpyAsync failed");
+            if (nativeOps.memcpyAsync(
+                            point.getPointers().getDevicePointer().address(),
+                            point.getPointers().getHostPointer().address(),
+                            AllocationUtils.getRequiredMemory(shape),
+                            CudaConstants.cudaMemcpyHostToDevice,
+                            context.getSpecialStream().address()) == 0)
+                throw new IllegalStateException("MemcpyAsync relocate H2D failed: [" + point.getHostPointer().address() + "] -> [" + point.getDevicePointer().address() + "]");
+
+            flowController.commitTransfer(context.getSpecialStream());
+                //
+                //
 
             //context.syncOldStream();
 
@@ -512,42 +517,19 @@ public class CudaZeroHandler implements MemoryHandler {
 
             point.tickHostRead();
         } else {
-          //  log.info("Memcpy async: {} bytes ", length);
-            /*
-            JCuda.cudaMemcpyAsync(
-                    dP,
-                    srcPointer,
-                    length,
-                    //      (point.getAllocationStatus() == AllocationStatus.DEVICE ? cudaMemcpyKind.cudaMemcpyHostToDevice: cudaMemcpyKind.cudaMemcpyHostToHost),
-                    cudaMemcpyKind.cudaMemcpyHostToHost,
-                    context.getOldStream()
-            );
-            */
             //log.info("Memcpy pointers: [{}] -> [{}]", srcPointer.address(),  dP.address());
 
             CudaContext context = flowController.prepareAction(point);
             tContext = context;
             if (nativeOps.memcpyAsync(dP.address(), srcPointer.address(), length, CudaConstants.cudaMemcpyHostToHost, context.getSpecialStream().address()) == 0)
-                throw new IllegalStateException("MemcpyAsync failed");
+                throw new IllegalStateException("MemcpyAsync H2H failed: [" + srcPointer.address() + "] -> [" + dP.address() + "]");
 
-            if (configuration.getExecutionModel() == Configuration.ExecutionModel.SEQUENTIAL)
-                tContext.syncSpecialStream();
+                flowController.commitTransfer(tContext.getSpecialStream());
 
             if (point.getAllocationStatus() == AllocationStatus.HOST)
                 flowController.registerAction(context, point);
         }
 
-
-        /*
-        // OUT-OF-ORDER/OUT-OF-STREAM COPY, DO NOT UNCOMMENT, DO NOT REMOVE
-
-        org.bytedeco.javacpp.Pointer dstPointer = new CudaPointer(point.getPointers().getHostPointer().address() + dstOffset,0L);
-        org.bytedeco.javacpp.Pointer srcPointerJ = new CudaPointer(srcPointer, length);
-
-        log.info("JCPP Memcpy: [{}] -> [{}], length: [{}]", srcPointerJ.address(), dstPointer.address(), length);
-
-        org.bytedeco.javacpp.Pointer.memcpy(dstPointer, srcPointerJ, length);
-*/
         // if we're copying something into host memory, but we're on device - we need to provide exact copy to device as well
         if (point.getAllocationStatus() == AllocationStatus.DEVICE) {
             // TODO: this sounds wrong, and probably memcpy whould check initial direction, like relocate did before
@@ -556,24 +538,17 @@ public class CudaZeroHandler implements MemoryHandler {
             if (tContext == null)
                 tContext  = flowController.prepareAction(point);
             //log.info("MemcpyAsync to device... [{}] -> [{}]", dP.getNativePointer(), rDP.getNativePointer());
-/*
-            JCuda.cudaMemcpyAsync(
-                    rDP,
-                    dP,
-                    length,
-                    cudaMemcpyKind.cudaMemcpyHostToDevice,
-                    context.getOldStream()
-            );*/
-            if (nativeOps.memcpyAsync(
+
+            if (
+                    nativeOps.memcpyAsync(
                         rDP.address(),
                         dP.address(),
                         length,
                         CudaConstants.cudaMemcpyHostToDevice,
                         tContext.getSpecialStream().address()) == 0)
-                throw new IllegalStateException("MemcpyAsync failed: [" + dP.address() + "] -> [" + rDP.address() + "]");
+                throw new IllegalStateException("MemcpyAsync H2D failed: [" + dP.address() + "] -> [" + rDP.address() + "]");
 
-            if (configuration.getExecutionModel() == Configuration.ExecutionModel.SEQUENTIAL)
-                tContext.syncSpecialStream();
+            flowController.commitTransfer(tContext.getSpecialStream());
 
             flowController.registerAction(tContext, point);
 
@@ -827,7 +802,7 @@ public class CudaZeroHandler implements MemoryHandler {
 
             point.setDeviceId(getDeviceId());
 
-            PointersPair newPointers = alloc(AllocationStatus.DEVICE, point, shape);
+            PointersPair newPointers = alloc(AllocationStatus.DEVICE, point, shape, false);
 
             if (newPointers != null && newPointers.getDevicePointer() != null) {
                 //relocate(AllocationStatus.HOST, AllocationStatus.DEVICE, point, shape);
